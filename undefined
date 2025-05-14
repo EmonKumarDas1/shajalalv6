@@ -1,0 +1,30 @@
+import { InvoiceDetail } from "@/components/dashboard/invoices/InvoiceDetail";
+import { useEffect, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+
+export default function UpdatedInvoiceDesignStoryboard() {
+  const [isLoaded, setIsLoaded] = useState(false);
+  
+  useEffect(() => {
+    // Simulate loading delay
+    const timer = setTimeout(() => setIsLoaded(true), 500);
+    return () => clearTimeout(timer);
+  }, []);
+  
+  return (
+    <div className="bg-gray-100 min-h-screen p-4">
+      <h1 className="text-xl font-bold mb-4">Updated Invoice Design</h1>
+      <Card>
+        <CardContent className="p-6">
+          {isLoaded ? (
+            <InvoiceDetail />
+          ) : (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-600"></div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

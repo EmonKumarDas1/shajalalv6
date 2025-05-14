@@ -1,0 +1,1 @@
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS invoice_type TEXT DEFAULT 'sales';

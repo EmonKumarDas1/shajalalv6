@@ -1,0 +1,7 @@
+-- Add new fields to chalan_items table
+ALTER TABLE chalan_items
+ADD COLUMN IF NOT EXISTS watt TEXT,
+ADD COLUMN IF NOT EXISTS color TEXT,
+ADD COLUMN IF NOT EXISTS model TEXT,
+ADD COLUMN IF NOT EXISTS price NUMERIC(10, 2),
+ADD COLUMN IF NOT EXISTS company TEXT;
