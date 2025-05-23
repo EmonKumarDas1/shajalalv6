@@ -24,6 +24,7 @@ import {
 interface ProductSearchProps {
   onAddToCart: (product: Product) => void;
   shopId: string;
+  cartItems?: any[];
 }
 
 type SortOption = {
@@ -38,7 +39,11 @@ const sortOptions: SortOption[] = [
   { field: "watt", label: "Wattage", column: "watt" },
 ];
 
-export function ProductSearch({ onAddToCart, shopId }: ProductSearchProps) {
+export function ProductSearch({
+  onAddToCart,
+  shopId,
+  cartItems = [],
+}: ProductSearchProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -381,14 +386,30 @@ export function ProductSearch({ onAddToCart, shopId }: ProductSearchProps) {
                 <div className="p-4">
                   <div className="mb-2 flex items-start justify-between">
                     <h3 className="font-medium">{product.name}</h3>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => onAddToCart(product)}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
+                    <div className="relative">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => onAddToCart(product)}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                      {(() => {
+                        const itemCount = cartItems
+                          .filter(
+                            (item) =>
+                              item.product_id === product.id &&
+                              item.type === "regular",
+                          )
+                          .reduce((sum, item) => sum + item.quantity, 0);
+                        return itemCount > 0 ? (
+                          <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                            {itemCount}
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
                   </div>
                   <div className="space-y-1 text-sm text-muted-foreground">
                     <p>

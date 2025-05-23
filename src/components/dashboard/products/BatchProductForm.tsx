@@ -78,7 +78,9 @@ export function BatchProductForm({
   const [advancePayment, setAdvancePayment] = useState<string>("0");
   const [remainingAmount, setRemainingAmount] = useState<string>("0");
   const [discount, setDiscount] = useState<string>("0");
-  const [discountType, setDiscountType] = useState<"fixed" | "percentage">("fixed");
+  const [discountType, setDiscountType] = useState<"fixed" | "percentage">(
+    "fixed",
+  );
   const [discountAmount, setDiscountAmount] = useState<string>("0");
   const [amountAfterDiscount, setAmountAfterDiscount] = useState<string>("0");
   const [invoiceId, setInvoiceId] = useState<string>("");
@@ -138,7 +140,7 @@ export function BatchProductForm({
         .from("products")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(100);
 
       if (error) throw error;
       setSearchResults(data || []);
@@ -149,16 +151,38 @@ export function BatchProductForm({
 
   async function searchProducts(query: string) {
     try {
+      // If query is empty or very short, fetch all products with a higher limit
       const { data, error } = await supabase
         .from("products")
         .select("*")
         .or(
-          `name.ilike.%${query}%,barcode.ilike.%${query}%,model.ilike.%${query}%`,
+          query && query.length > 0
+            ? `name.ilike.%${query.toLowerCase()}%,barcode.ilike.%${query.toLowerCase()}%,model.ilike.%${query.toLowerCase()}%`
+            : "name.neq.null",
         )
-        .limit(20);
+        .order("name", { ascending: true })
+        .limit(query && query.length > 0 ? 100 : 500);
 
       if (error) throw error;
-      setSearchResults(data || []);
+
+      // Filter for unique products based on name, size, color, and model
+      const uniqueProducts =
+        data?.reduce((acc: Product[], current) => {
+          const isDuplicate = acc.some(
+            (item) =>
+              item.name?.toLowerCase() === current.name?.toLowerCase() &&
+              item.size === current.size &&
+              item.color === current.color &&
+              item.model === current.model,
+          );
+
+          if (!isDuplicate) {
+            acc.push(current);
+          }
+          return acc;
+        }, []) || [];
+
+      setSearchResults(uniqueProducts);
     } catch (error) {
       console.error("Error searching products:", error);
       toast({
@@ -286,8 +310,10 @@ export function BatchProductForm({
         if (row.id === id) {
           const updatedRow = { ...row, [field]: value };
           if (field === "buyingPrice" || field === "quantity") {
-            const price = Number(field === "buyingPrice" ? value : row.buyingPrice) || 0;
-            const quantity = Number(field === "quantity" ? value : row.quantity) || 0;
+            const price =
+              Number(field === "buyingPrice" ? value : row.buyingPrice) || 0;
+            const quantity =
+              Number(field === "quantity" ? value : row.quantity) || 0;
             updatedRow.totalPrice = (price * quantity).toFixed(2);
           }
           return updatedRow;
@@ -334,7 +360,7 @@ export function BatchProductForm({
         !row.quantity ||
         isNaN(Number(row.quantity)) ||
         Number(row.quantity) < 0 ||
-        (row.watt && (isNaN(Number(row.watt)) || Number(row.watt) <= 0))
+        (row.watt && (isNaN(Number(row.watt)) || Number(row.watt) <= 0)),
     );
 
     if (invalidRows.length > 0) {
@@ -352,7 +378,8 @@ export function BatchProductForm({
       toast({
         variant: "destructive",
         title: "Validation Error",
-        description: "Discount cannot be negative or greater than total amount.",
+        description:
+          "Discount cannot be negative or greater than total amount.",
       });
       return;
     }
@@ -385,7 +412,8 @@ export function BatchProductForm({
           advance_payment: Number(advancePayment),
           remaining_amount: Number(remainingAmount),
           discount: Number(discountAmount),
-          discount_percentage: discountType === "percentage" ? Number(discount) : null,
+          discount_percentage:
+            discountType === "percentage" ? Number(discount) : null,
           amount_after_discount: Number(amountAfterDiscount),
           status: invoiceStatus,
           supplier_id: supplierId,
@@ -811,9 +839,15 @@ export function BatchProductForm({
                       Total Price
                     </TableHead>
                     <TableHead className="w-[8%] font-semibold">Watt</TableHead>
-                    <TableHead className="w-[10%] font-semibold">Size</TableHead>
-                    <TableHead className="w-[10%] font-semibold">Color</TableHead>
-                    <TableHead className="w-[10%] font-semibold">Model</TableHead>
+                    <TableHead className="w-[10%] font-semibold">
+                      Size
+                    </TableHead>
+                    <TableHead className="w-[10%] font-semibold">
+                      Color
+                    </TableHead>
+                    <TableHead className="w-[10%] font-semibold">
+                      Model
+                    </TableHead>
                     <TableHead className="w-[4%]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -830,13 +864,20 @@ export function BatchProductForm({
                             placeholder="Product name"
                             required
                             className="w-full pr-10"
-                            style={{ width: `${Math.max(100, row.name.length * 10)}px` }}
+                            style={{
+                              width: `${Math.max(100, row.name.length * 10)}px`,
+                            }}
                           />
                           <Popover
                             open={isSearchOpen && activeRowId === row.id}
                             onOpenChange={(open) => {
                               setIsSearchOpen(open);
-                              if (open) setActiveRowId(row.id);
+                              if (open) {
+                                setActiveRowId(row.id);
+                                // Reset search query when opening to show all products
+                                setSearchQuery("");
+                                fetchRecentProducts();
+                              }
                             }}
                           >
                             <PopoverTrigger asChild>
@@ -857,7 +898,7 @@ export function BatchProductForm({
                             </PopoverTrigger>
                             <PopoverContent
                               align="start"
-                             urgency="bottom"
+                              urgency="bottom"
                               sideOffset={5}
                               alignOffset={-10}
                               className="w-[300px] p-0"
@@ -927,13 +968,15 @@ export function BatchProductForm({
                             updateRowField(
                               row.id,
                               "buyingPrice",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           placeholder="0.00"
                           required
                           className="w-full"
-                          style={{ width: `${Math.max(60, row.buyingPrice.length * 10)}px` }}
+                          style={{
+                            width: `${Math.max(60, row.buyingPrice.length * 10)}px`,
+                          }}
                         />
                       </TableCell>
                       <TableCell>
@@ -945,13 +988,15 @@ export function BatchProductForm({
                             updateRowField(
                               row.id,
                               "sellingPrice",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           placeholder="0.00"
                           required
                           className="w-full"
-                          style={{ width: `${Math.max(60, row.sellingPrice.length * 10)}px` }}
+                          style={{
+                            width: `${Math.max(60, row.sellingPrice.length * 10)}px`,
+                          }}
                         />
                       </TableCell>
                       <TableCell>
@@ -965,7 +1010,9 @@ export function BatchProductForm({
                           placeholder="0"
                           required
                           className="w-full"
-                          style={{ width: `${Math.max(50, row.quantity.length * 10)}px` }}
+                          style={{
+                            width: `${Math.max(50, row.quantity.length * 10)}px`,
+                          }}
                         />
                       </TableCell>
                       <TableCell>
@@ -974,7 +1021,9 @@ export function BatchProductForm({
                           value={row.totalPrice || "0.00"}
                           readOnly
                           className="bg-gray-50 w-full"
-                          style={{ width: `${Math.max(60, (row.totalPrice || "0.00").length * 10)}px` }}
+                          style={{
+                            width: `${Math.max(60, (row.totalPrice || "0.00").length * 10)}px`,
+                          }}
                         />
                       </TableCell>
                       <TableCell>
@@ -987,7 +1036,9 @@ export function BatchProductForm({
                           }
                           placeholder="Watt"
                           className="w-20"
-                          style={{ width: `${Math.max(60, row.watt.length * 10)}px` }}
+                          style={{
+                            width: `${Math.max(60, row.watt.length * 10)}px`,
+                          }}
                         />
                       </TableCell>
                       <TableCell>
@@ -999,7 +1050,9 @@ export function BatchProductForm({
                           }
                           placeholder="Size"
                           className="w-full"
-                          style={{ width: `${Math.max(60, row.size.length * 10)}px` }}
+                          style={{
+                            width: `${Math.max(60, row.size.length * 10)}px`,
+                          }}
                         />
                       </TableCell>
                       <TableCell>
@@ -1010,7 +1063,9 @@ export function BatchProductForm({
                           }
                           placeholder="Color"
                           className="w-full"
-                          style={{ width: `${Math.max(60, row.color.length * 10)}px` }}
+                          style={{
+                            width: `${Math.max(60, row.color.length * 10)}px`,
+                          }}
                         />
                       </TableCell>
                       <TableCell>
@@ -1021,7 +1076,9 @@ export function BatchProductForm({
                           }
                           placeholder="Model"
                           className="w-full"
-                          style={{ width: `${Math.max(60, row.model.length * 10)}px` }}
+                          style={{
+                            width: `${Math.max(60, row.model.length * 10)}px`,
+                          }}
                         />
                       </TableCell>
                       <TableCell>
@@ -1118,7 +1175,10 @@ export function BatchProductForm({
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div className="space-y-2 bg-white p-4 rounded-lg border border-gray-100">
-            <Label htmlFor="amountAfterDiscount" className="text-sm font-medium">
+            <Label
+              htmlFor="amountAfterDiscount"
+              className="text-sm font-medium"
+            >
               Amount After Discount
             </Label>
             <Input

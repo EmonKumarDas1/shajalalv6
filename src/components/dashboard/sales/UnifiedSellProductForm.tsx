@@ -81,6 +81,10 @@ export function UnifiedSellProductForm({
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>(
     [],
   );
+  const [drafts, setDrafts] = useState<{ [key: string]: any }>({});
+  const [currentDraftName, setCurrentDraftName] = useState<string>("");
+  const [showDraftModal, setShowDraftModal] = useState(false);
+  const [draftNameInput, setDraftNameInput] = useState("");
   const [newOuterProduct, setNewOuterProduct] = useState({
     name: "",
     supplier_id: "",
@@ -99,7 +103,113 @@ export function UnifiedSellProductForm({
     if (shopId) {
       fetchSuppliers();
     }
+    loadDrafts();
   }, [shopId]);
+
+  const loadDrafts = () => {
+    try {
+      const savedDrafts = localStorage.getItem("salesDrafts");
+      if (savedDrafts) {
+        setDrafts(JSON.parse(savedDrafts));
+      }
+    } catch (error) {
+      console.error("Error loading drafts:", error);
+    }
+  };
+
+  const saveDraft = (draftName: string) => {
+    if (!draftName.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Draft name required",
+        description: "Please enter a name for the draft",
+      });
+      return;
+    }
+
+    const draftData = {
+      cartItems,
+      subtotal,
+      discountType,
+      discountValue,
+      discountAmount,
+      taxRate,
+      taxAmount,
+      totalAmount,
+      advancePayment,
+      remainingAmount,
+      paymentMethod,
+      customerName,
+      customerPhone,
+      shopId,
+      timestamp: new Date().toISOString(),
+    };
+
+    const updatedDrafts = {
+      ...drafts,
+      [draftName]: draftData,
+    };
+
+    setDrafts(updatedDrafts);
+    localStorage.setItem("salesDrafts", JSON.stringify(updatedDrafts));
+    setCurrentDraftName(draftName);
+    setShowDraftModal(false);
+    setDraftNameInput("");
+
+    toast({
+      title: "Draft saved",
+      description: `Draft "${draftName}" has been saved successfully`,
+    });
+  };
+
+  const loadDraft = (draftName: string) => {
+    const draft = drafts[draftName];
+    if (!draft) return;
+
+    setCartItems(draft.cartItems || []);
+    setDiscountType(draft.discountType || "percentage");
+    setDiscountValue(draft.discountValue || "0");
+    setTaxRate(draft.taxRate || "0");
+    setAdvancePayment(draft.advancePayment || "0");
+    setPaymentMethod(draft.paymentMethod || "cash");
+    setCurrentDraftName(draftName);
+
+    toast({
+      title: "Draft loaded",
+      description: `Draft "${draftName}" has been loaded successfully`,
+    });
+  };
+
+  const deleteDraft = (draftName: string) => {
+    const updatedDrafts = { ...drafts };
+    delete updatedDrafts[draftName];
+    setDrafts(updatedDrafts);
+    localStorage.setItem("salesDrafts", JSON.stringify(updatedDrafts));
+
+    if (currentDraftName === draftName) {
+      setCurrentDraftName("");
+    }
+
+    toast({
+      title: "Draft deleted",
+      description: `Draft "${draftName}" has been deleted`,
+    });
+  };
+
+  const clearCurrentSale = () => {
+    setCartItems([]);
+    setDiscountType("percentage");
+    setDiscountValue("0");
+    setTaxRate("0");
+    setAdvancePayment("0");
+    setPaymentMethod("cash");
+    setCurrentDraftName("");
+
+    toast({
+      title: "Sale cleared",
+      description: "All items and settings have been reset",
+    });
+  };
 
   useEffect(() => {
     calculateTotals();
@@ -111,7 +221,6 @@ export function UnifiedSellProductForm({
         .from("suppliers")
         .select("id, name")
         .order("name");
-
       if (error) throw error;
       setSuppliers(data || []);
     } catch (error) {
@@ -125,7 +234,6 @@ export function UnifiedSellProductForm({
   }
 
   const calculateTotals = () => {
-    // Calculate subtotal after per-product discounts
     const itemsSubtotal = cartItems.reduce(
       (sum, item) => sum + item.subtotal,
       0,
@@ -135,10 +243,8 @@ export function UnifiedSellProductForm({
       0,
     );
     const newSubtotal = itemsSubtotal - perProductDiscounts;
-
     setSubtotal(newSubtotal);
 
-    // Calculate additional cart-level discount
     let newDiscountAmount = 0;
     if (discountType === "percentage") {
       const percentage = parseFloat(discountValue) || 0;
@@ -148,12 +254,10 @@ export function UnifiedSellProductForm({
     }
     setDiscountAmount(newDiscountAmount);
 
-    // Calculate tax on amount after all discounts
     const newTaxAmount =
       ((newSubtotal - newDiscountAmount) * (parseFloat(taxRate) || 0)) / 100;
     setTaxAmount(newTaxAmount);
 
-    // Calculate final total
     const newTotal = newSubtotal - newDiscountAmount + newTaxAmount;
     setTotalAmount(newTotal);
 
@@ -171,7 +275,6 @@ export function UnifiedSellProductForm({
         .select("*")
         .eq("id", product.id)
         .single();
-
       if (productError) {
         toast({
           variant: "destructive",
@@ -188,7 +291,6 @@ export function UnifiedSellProductForm({
           .select("name")
           .eq("id", productData.supplier_id)
           .single();
-
         if (supplierError) {
           console.error("Error fetching supplier:", supplierError);
         } else {
@@ -203,7 +305,6 @@ export function UnifiedSellProductForm({
       if (existingItemIndex >= 0) {
         const updatedItems = [...cartItems];
         const item = updatedItems[existingItemIndex];
-
         if (item.quantity >= product.quantity) {
           toast({
             variant: "destructive",
@@ -212,10 +313,8 @@ export function UnifiedSellProductForm({
           });
           return;
         }
-
         item.quantity += 1;
         item.subtotal = item.selling_price * item.quantity;
-        // Recalculate discount amount
         if (item.discount_type === "percentage") {
           item.discount_amount = (item.subtotal * item.discount) / 100;
         } else {
@@ -231,7 +330,6 @@ export function UnifiedSellProductForm({
           });
           return;
         }
-
         const newItem: CartItem = {
           id: Date.now().toString(),
           product_id: product.id,
@@ -253,10 +351,8 @@ export function UnifiedSellProductForm({
           color: product.color,
           model: product.model,
         };
-
         setCartItems([...cartItems, newItem]);
       }
-
       toast({
         title: "Product added",
         description: `${product.name || "Product"} added to cart`,
@@ -278,11 +374,9 @@ export function UnifiedSellProductForm({
       });
       return;
     }
-
     const supplierName =
       suppliers.find((s) => s.id === newOuterProduct.supplier_id)?.name ||
       "Unknown";
-
     const newItem: CartItem = {
       id: Date.now().toString(),
       product_id: `outer-${Date.now()}`,
@@ -291,7 +385,7 @@ export function UnifiedSellProductForm({
       selling_price: newOuterProduct.selling_price,
       buying_price: newOuterProduct.buying_price,
       quantity: newOuterProduct.quantity,
-      available_quantity: 999, // Outer products don't have inventory constraints
+      available_quantity: 999,
       subtotal: newOuterProduct.selling_price * newOuterProduct.quantity,
       supplier_name: supplierName,
       supplier_id: newOuterProduct.supplier_id,
@@ -304,10 +398,7 @@ export function UnifiedSellProductForm({
       color: newOuterProduct.color || null,
       model: newOuterProduct.model || null,
     };
-
     setCartItems([...cartItems, newItem]);
-
-    // Reset form
     setNewOuterProduct({
       name: "",
       supplier_id: "",
@@ -319,9 +410,7 @@ export function UnifiedSellProductForm({
       selling_price: 0,
       quantity: 1,
     });
-
     setShowAddOuterProduct(false);
-
     toast({
       title: "Outer product added",
       description: `${newOuterProduct.name} added to cart`,
@@ -343,18 +432,14 @@ export function UnifiedSellProductForm({
           });
           newQuantity = item.available_quantity;
         }
-
         if (newQuantity < 1) newQuantity = 1;
-
         const newSubtotal = item.selling_price * newQuantity;
         let discountAmount = 0;
-
         if (item.discount_type === "percentage") {
           discountAmount = (newSubtotal * item.discount) / 100;
         } else {
           discountAmount = Math.min(item.discount, newSubtotal);
         }
-
         return {
           ...item,
           quantity: newQuantity,
@@ -364,24 +449,20 @@ export function UnifiedSellProductForm({
       }
       return item;
     });
-
     setCartItems(updatedItems);
   };
 
   const handlePriceChange = (itemId: string, newPrice: number) => {
     if (newPrice <= 0) return;
-
     const updatedItems = cartItems.map((item) => {
       if (item.id === itemId) {
         const newSubtotal = newPrice * item.quantity;
         let discountAmount = 0;
-
         if (item.discount_type === "percentage") {
           discountAmount = (newSubtotal * item.discount) / 100;
         } else {
           discountAmount = Math.min(item.discount, newSubtotal);
         }
-
         return {
           ...item,
           selling_price: newPrice,
@@ -391,13 +472,11 @@ export function UnifiedSellProductForm({
       }
       return item;
     });
-
     setCartItems(updatedItems);
   };
 
   const handleBuyingPriceChange = (itemId: string, newPrice: number) => {
     if (newPrice < 0) return;
-
     const updatedItems = cartItems.map((item) => {
       if (item.id === itemId) {
         return {
@@ -407,7 +486,6 @@ export function UnifiedSellProductForm({
       }
       return item;
     });
-
     setCartItems(updatedItems);
   };
 
@@ -419,13 +497,11 @@ export function UnifiedSellProductForm({
     const updatedItems = cartItems.map((item) => {
       if (item.id === itemId) {
         let discountAmount = 0;
-
         if (discountType === "percentage") {
           discountAmount = (item.subtotal * discount) / 100;
         } else {
           discountAmount = Math.min(discount, item.subtotal);
         }
-
         return {
           ...item,
           discount,
@@ -435,13 +511,17 @@ export function UnifiedSellProductForm({
       }
       return item;
     });
-
     setCartItems(updatedItems);
+  };
+
+  const handleAdvancePaymentChange = (value: string) => {
+    const numValue = value ? parseFloat(value) : 0;
+    if (numValue < 0 || isNaN(numValue)) return;
+    setAdvancePayment(numValue.toString());
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!shopId) {
       toast({
         variant: "destructive",
@@ -450,7 +530,6 @@ export function UnifiedSellProductForm({
       });
       return;
     }
-
     if (cartItems.length === 0) {
       toast({
         variant: "destructive",
@@ -459,10 +538,8 @@ export function UnifiedSellProductForm({
       });
       return;
     }
-
     try {
       setLoading(true);
-
       let customerId = null;
       if (customerName && customerPhone) {
         const { data: existingCustomer, error: customerCheckError } =
@@ -471,11 +548,9 @@ export function UnifiedSellProductForm({
             .select("id")
             .eq("phone", customerPhone)
             .maybeSingle();
-
         if (customerCheckError) {
           console.error("Error checking customer:", customerCheckError);
         }
-
         if (!existingCustomer) {
           const { data: newCustomer, error: createCustomerError } =
             await supabase
@@ -486,7 +561,6 @@ export function UnifiedSellProductForm({
                 created_at: new Date().toISOString(),
               })
               .select();
-
           if (createCustomerError) {
             console.error("Error creating customer:", createCustomerError);
           } else if (newCustomer && newCustomer.length > 0) {
@@ -496,28 +570,17 @@ export function UnifiedSellProductForm({
           customerId = existingCustomer.id;
         }
       }
-
-      // Check if we're adding to an existing invoice
       const urlParams = new URLSearchParams(window.location.search);
       const existingInvoiceId = urlParams.get("invoice_id") || "";
-
-      // Create a variable to store the invoice number for new invoices
       let invoiceNumber = `SALE-${Date.now().toString().slice(-6)}`;
-
       if (existingInvoiceId) {
-        // Update existing invoice
         invoiceNumber = existingInvoiceId;
-
-        // Get current invoice details
         const { data: currentInvoice, error: invoiceError } = await supabase
           .from("invoices")
           .select("*")
           .eq("id", existingInvoiceId)
           .single();
-
         if (invoiceError) throw invoiceError;
-
-        // Calculate new total amount
         const newTotalAmount = currentInvoice.total_amount + totalAmount;
         const newRemainingAmount =
           newTotalAmount - currentInvoice.advance_payment;
@@ -527,8 +590,6 @@ export function UnifiedSellProductForm({
             : newRemainingAmount < newTotalAmount
               ? "partially_paid"
               : "unpaid";
-
-        // Update the invoice
         const { error: updateError } = await supabase
           .from("invoices")
           .update({
@@ -539,10 +600,8 @@ export function UnifiedSellProductForm({
             notes: `${currentInvoice.notes || ""} | Additional items added: Discount: ${discountAmount.toFixed(2)}, Tax: ${taxAmount.toFixed(2)}`,
           })
           .eq("id", existingInvoiceId);
-
         if (updateError) throw updateError;
       } else {
-        // Determine payment status based on remaining amount
         const advancePaymentAmount = parseFloat(advancePayment) || 0;
         const paymentStatus =
           advancePaymentAmount >= totalAmount
@@ -550,45 +609,30 @@ export function UnifiedSellProductForm({
             : advancePaymentAmount > 0
               ? "partially_paid"
               : "unpaid";
-
-        // Calculate separate totals for regular and outer products
         const regularProductsTotal = cartItems
           .filter((item) => item.type === "regular")
           .reduce(
             (sum, item) => sum + (item.subtotal - item.discount_amount),
             0,
           );
-
         const outerProductsTotal = cartItems
           .filter((item) => item.type === "outer")
           .reduce(
             (sum, item) => sum + (item.subtotal - item.discount_amount),
             0,
           );
-
-        // Apply tax and discount proportionally
         const regularProportion =
           totalAmount > 0
             ? regularProductsTotal / (regularProductsTotal + outerProductsTotal)
             : 0;
         const regularTax = taxAmount * regularProportion;
         const regularDiscount = discountAmount * regularProportion;
-
-        // For dashboard income calculation, we need to separate regular and outer products
-        // The total_amount should only include regular products for income calculation purposes
-        // Outer products will be tracked separately in invoice_items with is_outer_product flag
-
-        // Calculate the total amount WITHOUT outer products for income calculation
-        const regularOnlyTotal =
-          regularProductsTotal - regularDiscount + regularTax;
-
+        const combinedTotal = totalAmount;
         const { data: invoiceData, error: invoiceError } = await supabase
           .from("invoices")
           .insert({
             invoice_number: invoiceNumber,
-            // Store the regular products total only in total_amount for income calculation
-            total_amount: regularOnlyTotal,
-            // Store the full amount including outer products in the notes for display purposes
+            total_amount: combinedTotal,
             advance_payment: advancePaymentAmount,
             remaining_amount: remainingAmount,
             status: paymentStatus,
@@ -597,110 +641,69 @@ export function UnifiedSellProductForm({
             customer_phone: customerPhone || null,
             customer_id: customerId,
             invoice_type: "sales",
-            notes: `Discount: ${discountAmount.toFixed(2)}, Tax: ${taxAmount.toFixed(2)}, OuterProductsTotal: ${outerProductsTotal.toFixed(2)}, FullTotal: ${totalAmount.toFixed(2)}`,
+            notes: `Discount: ${discountAmount.toFixed(2)}, Tax: ${taxAmount.toFixed(2)}, OuterProductsTotal: ${outerProductsTotal.toFixed(2)}, RegularProductsTotal: ${regularProductsTotal.toFixed(2)}, FullTotal: ${totalAmount.toFixed(2)}`,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
           .select();
-
         if (invoiceError) throw invoiceError;
         invoiceNumber = invoiceData[0].invoice_number;
       }
-
-      // Process regular products (update inventory)
       const regularProducts = cartItems.filter(
         (item) => item.type === "regular",
       );
       for (const item of regularProducts) {
-        // Update product quantity and potentially the selling price
         const { error: updateError } = await supabase
           .from("products")
           .update({
             quantity: item.available_quantity - item.quantity,
-            selling_price: item.selling_price, // Update the product's selling price
+            selling_price: item.selling_price,
             updated_at: new Date().toISOString(),
           })
           .eq("id", item.product_id);
-
         if (updateError) throw updateError;
       }
-
-      // Process outer products - do NOT add them to the products database
-      // We'll only track them in the invoice_items table with is_outer_product=true
-      // Outer product income is only calculated when payment is received
       const outerProducts = cartItems.filter((item) => item.type === "outer");
-      // We're intentionally not adding outer products to the products table
-      // This is to keep them separate from the regular inventory
-
-      // Get the invoice ID (either from existing or newly created invoice)
       let invoiceId;
       if (existingInvoiceId) {
         invoiceId = existingInvoiceId;
-      } else if (
-        typeof invoiceData !== "undefined" &&
-        invoiceData &&
-        invoiceData.length > 0 &&
-        invoiceData[0] &&
-        invoiceData[0].id
-      ) {
-        invoiceId = invoiceData[0].id;
       } else {
-        // If we can't get the invoice ID from invoiceData, try to fetch it using the invoice number
-        try {
-          const { data: fetchedInvoice, error: fetchError } = await supabase
-            .from("invoices")
-            .select("id")
-            .eq("invoice_number", invoiceNumber)
-            .single();
-
-          if (fetchError || !fetchedInvoice) {
-            throw new Error(
-              `Failed to get invoice ID for invoice number ${invoiceNumber}`,
-            );
-          }
-
-          invoiceId = fetchedInvoice.id;
-        } catch (fetchError) {
-          console.error("Error fetching invoice ID:", fetchError);
+        const { data: fetchedInvoice, error: fetchError } = await supabase
+          .from("invoices")
+          .select("id")
+          .eq("invoice_number", invoiceNumber)
+          .single();
+        if (fetchError || !fetchedInvoice) {
           throw new Error(
-            `Failed to get invoice ID: ${fetchError.message || "Unknown error"}`,
+            `Failed to get invoice ID for invoice number ${invoiceNumber}`,
           );
         }
+        invoiceId = fetchedInvoice.id;
       }
-
-      // Create invoice items for all products
-      const invoiceItems = cartItems.map((item) => {
-        // For outer products, only record profit if payment is received
-        // Always store the actual buying price, but we'll calculate profit separately based on payments
-        return {
-          invoice_id: invoiceId,
-          product_id: item.type === "regular" ? item.product_id : null,
-          quantity: item.quantity,
-          unit_price: item.selling_price,
-          total_price: item.subtotal,
-          supplier_name: item.supplier_name || "Unknown Supplier",
-          created_at: new Date().toISOString(),
-          product_name: item.name || "Unknown Product",
-          barcode: item.barcode || "",
-          watt: item.watt ? parseFloat(item.watt) : null,
-          discount: item.discount || 0,
-          discount_type: item.discount_type || "percentage",
-          discount_amount: item.discount_amount || 0,
-          is_outer_product: item.type === "outer",
-          buying_price: item.buying_price || 0, // Always store the actual buying price
-          size: item.size || null,
-          color: item.color || null,
-          model: item.model || null,
-        };
-      });
-
+      const invoiceItems = cartItems.map((item) => ({
+        invoice_id: invoiceId,
+        product_id: item.type === "regular" ? item.product_id : null,
+        quantity: item.quantity,
+        unit_price: item.selling_price,
+        total_price: item.subtotal,
+        supplier_name: item.supplier_name || "Unknown Supplier",
+        created_at: new Date().toISOString(),
+        product_name: item.name || "Unknown Product",
+        barcode: item.barcode || "",
+        watt: item.watt ? parseFloat(item.watt) : null,
+        discount: item.discount || 0,
+        discount_type: item.discount_type || "percentage",
+        discount_amount: item.discount_amount || 0,
+        is_outer_product: item.type === "outer",
+        buying_price: item.buying_price || 0,
+        size: item.size || null,
+        color: item.color || null,
+        model: item.model || null,
+      }));
       const { error: itemsError } = await supabase
         .from("invoice_items")
         .insert(invoiceItems);
-
       if (itemsError) throw itemsError;
-
-      // Create payment record if advance payment is provided
       const advancePaymentAmount = parseFloat(advancePayment) || 0;
       if (advancePaymentAmount > 0) {
         const { error: paymentError } = await supabase.from("payments").insert({
@@ -712,13 +715,10 @@ export function UnifiedSellProductForm({
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
-
         if (paymentError) {
           console.error("Error creating payment record:", paymentError);
-          // Don't throw error here, just log it - we don't want to fail the whole transaction
         }
       }
-
       toast({
         title: existingInvoiceId
           ? "Products added to invoice"
@@ -727,14 +727,7 @@ export function UnifiedSellProductForm({
           ? "Products have been added to the existing invoice successfully"
           : `Invoice #${invoiceNumber} has been generated successfully`,
       });
-
-      // Navigate to the invoice detail page using the invoice ID instead of invoice number
-      if (invoiceId) {
-        navigate(`/dashboard/invoices/${invoiceId}`);
-      } else {
-        // Fallback to using invoice number if ID is not available
-        navigate(`/dashboard/invoices/${invoiceNumber}`);
-      }
+      navigate(`/dashboard/invoices/${invoiceId}`);
     } catch (error) {
       console.error("Error processing sale:", error);
       let errorMessage = "An unknown error occurred";
@@ -778,22 +771,22 @@ export function UnifiedSellProductForm({
             )}
           </TabsTrigger>
         </TabsList>
-
         <TabsContent value="products" className="space-y-4 mt-4">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-medium">Regular Products</h3>
-            <Button
-              variant="outline"
-              onClick={() => setShowAddOuterProduct(!showAddOuterProduct)}
-              className="flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              {showAddOuterProduct
-                ? "Hide Outer Product Form"
-                : "Add Outer Product"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowAddOuterProduct(!showAddOuterProduct)}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                {showAddOuterProduct
+                  ? "Hide Outer Product Form"
+                  : "Add Outer Product"}
+              </Button>
+            </div>
           </div>
-
           {showAddOuterProduct && (
             <Card className="mb-6">
               <CardContent className="p-6">
@@ -815,7 +808,6 @@ export function UnifiedSellProductForm({
                         required
                       />
                     </div>
-
                     <div>
                       <Label htmlFor="supplier">Supplier *</Label>
                       <Select
@@ -839,7 +831,6 @@ export function UnifiedSellProductForm({
                         </SelectContent>
                       </Select>
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="buying-price">Buying Price *</Label>
@@ -878,7 +869,6 @@ export function UnifiedSellProductForm({
                         />
                       </div>
                     </div>
-
                     <div>
                       <Label htmlFor="quantity">Quantity *</Label>
                       <Input
@@ -896,7 +886,6 @@ export function UnifiedSellProductForm({
                       />
                     </div>
                   </div>
-
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="watt">Watt</Label>
@@ -912,7 +901,6 @@ export function UnifiedSellProductForm({
                         }
                       />
                     </div>
-
                     <div>
                       <Label htmlFor="size">Size</Label>
                       <Input
@@ -927,7 +915,6 @@ export function UnifiedSellProductForm({
                         }
                       />
                     </div>
-
                     <div>
                       <Label htmlFor="color">Color</Label>
                       <Input
@@ -942,7 +929,6 @@ export function UnifiedSellProductForm({
                         }
                       />
                     </div>
-
                     <div>
                       <Label htmlFor="model">Model</Label>
                       <Input
@@ -959,7 +945,6 @@ export function UnifiedSellProductForm({
                     </div>
                   </div>
                 </div>
-
                 <div className="mt-6 flex justify-end">
                   <Button
                     onClick={handleAddOuterProduct}
@@ -972,10 +957,12 @@ export function UnifiedSellProductForm({
               </CardContent>
             </Card>
           )}
-
-          <ProductSearch onAddToCart={handleAddToCart} shopId={shopId} />
+          <ProductSearch
+            onAddToCart={handleAddToCart}
+            shopId={shopId}
+            cartItems={cartItems}
+          />
         </TabsContent>
-
         <TabsContent value="cart" className="space-y-6 mt-4">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 gap-6">
@@ -987,20 +974,58 @@ export function UnifiedSellProductForm({
                         <h3 className="text-lg font-medium">Shopping Cart</h3>
                         <p className="text-sm text-gray-500">
                           {cartItems.length} items in cart
+                          {currentDraftName && (
+                            <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
+                              Draft: {currentDraftName}
+                            </span>
+                          )}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
                           type="button"
                           variant="outline"
+                          size="sm"
+                          onClick={() => setShowDraftModal(true)}
+                          className="flex items-center gap-2"
+                        >
+                          <Package className="h-4 w-4" />
+                          Save Draft
+                        </Button>
+                        {Object.keys(drafts).length > 0 && (
+                          <Select onValueChange={loadDraft}>
+                            <SelectTrigger className="w-[140px]">
+                              <SelectValue placeholder="Load Draft" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.keys(drafts).map((draftName) => (
+                                <SelectItem key={draftName} value={draftName}>
+                                  {draftName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={clearCurrentSale}
+                          className="flex items-center gap-2"
+                        >
+                          Clear All
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
                           onClick={() => setActiveTab("products")}
                           className="flex items-center gap-2"
                         >
-                          <Plus className="h-4 w-4" /> Add More Products
+                          <Plus className="h-4 w-4" />
+                          Add More Products
                         </Button>
                       </div>
                     </div>
-
                     {cartItems.length === 0 ? (
                       <div className="text-center py-16 px-4">
                         <ShoppingCart className="h-12 w-12 mx-auto text-gray-300 mb-3" />
@@ -1035,14 +1060,12 @@ export function UnifiedSellProductForm({
                           </TableHeader>
                           <TableBody>
                             {cartItems.map((item) => {
-                              // Calculate profit margin for this item
                               const profit =
                                 item.selling_price - item.buying_price;
                               const profitMargin =
                                 item.buying_price > 0
                                   ? (profit / item.buying_price) * 100
                                   : 0;
-
                               return (
                                 <TableRow
                                   key={item.id}
@@ -1297,7 +1320,6 @@ export function UnifiedSellProductForm({
                         </Table>
                       </div>
                     )}
-
                     {cartItems.length > 0 && (
                       <div className="mt-6 p-4 bg-gray-50 rounded-md">
                         <div className="flex flex-col sm:flex-row sm:justify-between gap-4">
@@ -1349,7 +1371,6 @@ export function UnifiedSellProductForm({
                               </div>
                             </div>
                           </div>
-
                           <div>
                             <h4 className="font-medium text-sm mb-2">
                               Financial Summary
@@ -1381,14 +1402,12 @@ export function UnifiedSellProductForm({
                   </CardContent>
                 </Card>
               </div>
-
               <div>
                 <Card>
                   <CardContent className="p-6">
                     <h3 className="text-lg font-medium mb-4">
                       Payment Details
                     </h3>
-
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <Label>Subtotal</Label>
@@ -1400,7 +1419,6 @@ export function UnifiedSellProductForm({
                           />
                         </div>
                       </div>
-
                       <div className="space-y-2">
                         <Label>Discount</Label>
                         <div className="flex items-center space-x-2">
@@ -1435,7 +1453,6 @@ export function UnifiedSellProductForm({
                           Discount amount: ${discountAmount.toFixed(2)}
                         </p>
                       </div>
-
                       <div className="space-y-2">
                         <Label>Tax Rate (%)</Label>
                         <Input
@@ -1450,9 +1467,7 @@ export function UnifiedSellProductForm({
                           Tax amount: ${taxAmount.toFixed(2)}
                         </p>
                       </div>
-
                       <Separator />
-
                       <div className="space-y-2">
                         <Label>Total Amount</Label>
                         <Input
@@ -1461,7 +1476,6 @@ export function UnifiedSellProductForm({
                           className="bg-gray-50 font-bold text-lg"
                         />
                       </div>
-
                       <div className="space-y-2">
                         <Label>Payment Method</Label>
                         <Select
@@ -1485,20 +1499,20 @@ export function UnifiedSellProductForm({
                           </SelectContent>
                         </Select>
                       </div>
-
                       <div className="space-y-2">
                         <Label>Advance Payment</Label>
                         <Input
                           type="number"
                           min="0"
-                          step="0.01"
+                          step="1"
                           max={totalAmount}
                           value={advancePayment}
-                          onChange={(e) => setAdvancePayment(e.target.value)}
-                          placeholder="0.00"
+                          onChange={(e) =>
+                            handleAdvancePaymentChange(e.target.value)
+                          }
+                          placeholder="0"
                         />
                       </div>
-
                       <div className="space-y-2">
                         <Label>Remaining Amount</Label>
                         <Input
@@ -1507,14 +1521,11 @@ export function UnifiedSellProductForm({
                           className="bg-gray-50"
                         />
                       </div>
-
-                      {/* Profit calculation for outer products */}
                       <div className="p-4 bg-blue-50 border border-blue-200 rounded-md mt-4">
                         <h4 className="font-medium text-blue-700 mb-2">
                           Combined Financial Summary
                         </h4>
                         <div className="space-y-2 text-sm">
-                          {/* Regular Products Summary */}
                           <div className="flex justify-between">
                             <span className="text-blue-700">
                               Regular Products Revenue:
@@ -1532,8 +1543,6 @@ export function UnifiedSellProductForm({
                                 .toFixed(2)}
                             </span>
                           </div>
-
-                          {/* Regular Products Cost (if available) */}
                           <div className="flex justify-between">
                             <span className="text-blue-700">
                               Regular Products Cost:
@@ -1550,8 +1559,6 @@ export function UnifiedSellProductForm({
                                 .toFixed(2)}
                             </span>
                           </div>
-
-                          {/* Outer Products Summary */}
                           {cartItems.some((item) => item.type === "outer") && (
                             <>
                               <div className="flex justify-between mt-2 pt-2 border-t border-blue-200">
@@ -1589,8 +1596,6 @@ export function UnifiedSellProductForm({
                               </div>
                             </>
                           )}
-
-                          {/* Total Revenue (Combined) */}
                           <div className="flex justify-between pt-2 mt-2 border-t border-blue-200 text-base">
                             <span className="text-blue-700 font-medium">
                               Total Revenue:
@@ -1607,8 +1612,6 @@ export function UnifiedSellProductForm({
                                 .toFixed(2)}
                             </span>
                           </div>
-
-                          {/* Total Cost (Combined) */}
                           <div className="flex justify-between text-base">
                             <span className="text-blue-700 font-medium">
                               Total Cost:
@@ -1624,8 +1627,6 @@ export function UnifiedSellProductForm({
                                 .toFixed(2)}
                             </span>
                           </div>
-
-                          {/* Estimated Profit - Only shown after payment is received */}
                           <div className="flex justify-between text-base">
                             <span className="text-blue-700 font-medium">
                               {parseFloat(advancePayment) > 0
@@ -1635,23 +1636,24 @@ export function UnifiedSellProductForm({
                             <span className="font-medium text-green-600">
                               $
                               {parseFloat(advancePayment) > 0
-                                ? // Only calculate actual profit if payment is received
-                                  Math.min(
-                                    parseFloat(advancePayment),
-                                    cartItems.reduce((sum, item) => {
+                                ? cartItems
+                                    .reduce((sum, item) => {
                                       const revenue =
                                         item.subtotal - item.discount_amount;
                                       const cost =
                                         item.buying_price * item.quantity;
-                                      return sum + (revenue - cost);
-                                    }, 0),
-                                  ).toFixed(2)
-                                : // Otherwise show as estimated
-                                  "0.00 (pending payment)"}
+                                      const profit = revenue - cost;
+                                      const paymentProportion = Math.min(
+                                        1,
+                                        parseFloat(advancePayment) /
+                                          totalAmount,
+                                      );
+                                      return sum + profit * paymentProportion;
+                                    }, 0)
+                                    .toFixed(2)
+                                : "0.00 (pending payment)"}
                             </span>
                           </div>
-
-                          {/* Advance Payment */}
                           <div className="flex justify-between pt-2 mt-2 border-t border-blue-200">
                             <span className="text-blue-700 font-medium">
                               Advance Payment:
@@ -1660,8 +1662,6 @@ export function UnifiedSellProductForm({
                               ${parseFloat(advancePayment || "0").toFixed(2)}
                             </span>
                           </div>
-
-                          {/* Remaining Amount */}
                           <div className="flex justify-between">
                             <span className="text-blue-700 font-medium">
                               Remaining Amount:
@@ -1672,7 +1672,6 @@ export function UnifiedSellProductForm({
                           </div>
                         </div>
                       </div>
-
                       <Button
                         type="submit"
                         className="w-full mt-4 bg-blue-600 hover:bg-blue-700"
@@ -1703,6 +1702,83 @@ export function UnifiedSellProductForm({
           </form>
         </TabsContent>
       </Tabs>
+
+      {/* Draft Save Modal */}
+      {showDraftModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+            <h3 className="text-lg font-medium mb-4">Save Draft</h3>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="draftName">Draft Name</Label>
+                <Input
+                  id="draftName"
+                  value={draftNameInput}
+                  onChange={(e) => setDraftNameInput(e.target.value)}
+                  placeholder="Enter draft name (e.g., Draft1, Customer Sale, etc.)"
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter") {
+                      saveDraft(draftNameInput);
+                    }
+                  }}
+                />
+              </div>
+
+              {Object.keys(drafts).length > 0 && (
+                <div>
+                  <Label>Existing Drafts</Label>
+                  <div className="mt-2 space-y-2 max-h-32 overflow-y-auto">
+                    {Object.keys(drafts).map((draftName) => (
+                      <div
+                        key={draftName}
+                        className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                      >
+                        <span className="text-sm">{draftName}</span>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setDraftNameInput(draftName);
+                            }}
+                          >
+                            Use Name
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => deleteDraft(draftName)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowDraftModal(false);
+                    setDraftNameInput("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => saveDraft(draftNameInput)}
+                  disabled={!draftNameInput.trim()}
+                >
+                  Save Draft
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

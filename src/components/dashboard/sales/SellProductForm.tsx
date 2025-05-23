@@ -356,6 +356,17 @@ export function SellProductForm() {
       return;
     }
 
+    // Validate advance payment
+    const advancePaymentValue = parseFloat(advancePayment) || 0;
+    if (advancePaymentValue > totalAmount) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Advance payment cannot exceed the total amount",
+      });
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -401,13 +412,23 @@ export function SellProductForm() {
             ? "paid"
             : "partially_paid";
 
+      // Ensure advance payment is a valid number and not exceeding total amount
+      const validAdvancePayment = Math.min(
+        Math.max(0, parseFloat(advancePayment) || 0),
+        totalAmount,
+      );
+
+      console.log(
+        `Creating invoice - Total: ${totalAmount}, Advance: ${validAdvancePayment}, Remaining: ${totalAmount - validAdvancePayment}`,
+      );
+
       const { data: invoiceData, error: invoiceError } = await supabase
         .from("invoices")
         .insert({
           invoice_number: invoiceNumber,
           total_amount: totalAmount,
-          advance_payment: parseFloat(advancePayment) || 0,
-          remaining_amount: remainingAmount,
+          advance_payment: validAdvancePayment,
+          remaining_amount: totalAmount - validAdvancePayment,
           status: paymentStatus,
           shop_id: shopId,
           customer_name: customerName || null,
@@ -890,12 +911,9 @@ export function SellProductForm() {
                       <Label>Advance Payment</Label>
                       <Input
                         type="number"
-                        min="0"
-                        step="0.01"
                         max={totalAmount}
                         value={advancePayment}
                         onChange={(e) => setAdvancePayment(e.target.value)}
-                        placeholder="0.00"
                       />
                     </div>
 

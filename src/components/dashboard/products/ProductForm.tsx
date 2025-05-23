@@ -144,12 +144,31 @@ export function ProductForm({
       const { data, error } = await supabase
         .from("products")
         .select("*, suppliers(name)")
-        .ilike("name", `%${query}%`)
-        .limit(10);
+        .ilike("name", `%${query.toLowerCase()}%`)
+        .order("name", { ascending: true })
+        .limit(50);
 
       if (error) throw error;
-      setSearchResults(data || []);
-      console.log("Search results:", data);
+
+      // Filter for unique products based on name, size, color, and model
+      const uniqueProducts =
+        data?.reduce((acc: Product[], current) => {
+          const isDuplicate = acc.some(
+            (item) =>
+              item.name?.toLowerCase() === current.name?.toLowerCase() &&
+              item.size === current.size &&
+              item.color === current.color &&
+              item.model === current.model,
+          );
+
+          if (!isDuplicate) {
+            acc.push(current);
+          }
+          return acc;
+        }, []) || [];
+
+      setSearchResults(uniqueProducts);
+      console.log("Search results:", uniqueProducts);
     } catch (error) {
       console.error("Error searching products:", error);
     }

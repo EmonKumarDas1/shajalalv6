@@ -554,6 +554,24 @@ export function InvoiceDetail() {
     return taxMatch ? parseFloat(taxMatch[1]) : 0;
   };
 
+  const getFullTotalAmount = () => {
+    if (!editedInvoice?.notes) return editedInvoice?.total_amount || 0;
+    const fullTotalMatch = editedInvoice.notes.match(/FullTotal: ([\d.]+)/);
+    const outerProductsTotalMatch = editedInvoice.notes.match(
+      /OuterProductsTotal: ([\d.]+)/,
+    );
+
+    if (fullTotalMatch) {
+      return parseFloat(fullTotalMatch[1]);
+    } else if (outerProductsTotalMatch) {
+      // If we have outer products total but no full total, calculate it
+      const outerProductsTotal = parseFloat(outerProductsTotalMatch[1]);
+      return (editedInvoice?.total_amount || 0) + outerProductsTotal;
+    }
+
+    return editedInvoice?.total_amount || 0;
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">

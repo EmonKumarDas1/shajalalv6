@@ -233,6 +233,21 @@ export function RevenueStats() {
       const currentStartStr = currentPeriodStart.toISOString();
       const currentEndStr = currentPeriodEnd.toISOString();
 
+      // Fetch sales invoices for the period
+      const { data: salesInvoices } = await supabase
+        .from("invoices")
+        .select("id, invoice_type, advance_payment, notes")
+        .eq("invoice_type", "sales")
+        .gte("created_at", currentStartStr)
+        .lte("created_at", currentEndStr);
+
+      // Fetch payments for the period
+      const { data: currentPayments } = await supabase
+        .from("payments")
+        .select("invoice_id, amount, payment_date")
+        .gte("payment_date", currentStartStr)
+        .lte("payment_date", currentEndStr);
+
       // Fetch outer product items (using is_outer_product flag)
       const { data: outerItems, error: outerError } = await supabase
         .from("invoice_items")
@@ -244,28 +259,118 @@ export function RevenueStats() {
       if (outerError) throw outerError;
 
       if (outerItems && outerItems.length > 0) {
-        // Calculate income from outer products
-        const income = outerItems.reduce((sum, item) => {
-          return (
-            sum +
-            (Number(item.total_price) || 0) -
-            (Number(item.discount_amount) || 0)
-          );
-        }, 0);
+        // Create payment map
+        const currentPaymentMap = (currentPayments || []).reduce(
+          (acc, payment) => {
+            acc[payment.invoice_id] =
+              (acc[payment.invoice_id] || 0) + Number(payment.amount || 0);
+            return acc;
+          },
+          {} as { [key: string]: number },
+        );
+
+        // Group outer product items by invoice_id
+        const outerItemsByInvoice = outerItems.reduce(
+          (acc, item) => {
+            if (!acc[item.invoice_id]) {
+              acc[item.invoice_id] = [];
+            }
+            acc[item.invoice_id].push(item);
+            return acc;
+          },
+          {} as { [key: string]: any[] },
+        );
+
+        let totalOuterIncome = 0;
+        let totalOuterExpenses = 0;
+
+        // Calculate income based on actual payments received for outer products
+        (salesInvoices || []).forEach((invoice) => {
+          const outerItemsForInvoice = outerItemsByInvoice[invoice.id] || [];
+
+          if (outerItemsForInvoice.length > 0) {
+            const advancePayment = Number(invoice.advance_payment || 0);
+            const paymentsReceived = currentPaymentMap[invoice.id] || 0;
+            const totalPaymentReceived = advancePayment + paymentsReceived;
+
+            // Calculate total invoice value for this invoice
+            const outerItemsTotal = outerItemsForInvoice.reduce(
+              (sum, item) =>
+                sum +
+                (Number(item.total_price) - Number(item.discount_amount || 0)),
+              0,
+            );
+
+            // Get all items for this invoice to check if it's mixed
+            const allInvoiceItems = outerItems.filter(
+              (item) => item.invoice_id === invoice.id,
+            );
+            const regularItemsForInvoice = allInvoiceItems.filter(
+              (item) => !item.is_outer_product,
+            );
+
+            const regularItemsTotal = regularItemsForInvoice.reduce(
+              (sum, item) =>
+                sum +
+                (Number(item.total_price) - Number(item.discount_amount || 0)),
+              0,
+            );
+
+            const invoiceTotal = regularItemsTotal + outerItemsTotal;
+
+            if (invoiceTotal > 0) {
+              let outerIncomeShare = 0;
+
+              if (regularItemsTotal > 0 && outerItemsTotal > 0) {
+                // Mixed invoice - distribute payment proportionally
+                let outerProportion = outerItemsTotal / invoiceTotal;
+
+                // Try to extract exact proportions from invoice notes
+                if (invoice.notes) {
+                  const notesStr = String(invoice.notes);
+                  const regularMatch = notesStr.match(
+                    /RegularProductsTotal:\s*\$(\d+\.\d+)/,
+                  );
+                  const outerMatch = notesStr.match(
+                    /OuterProductsTotal:\s*\$(\d+\.\d+)/,
+                  );
+                  const fullMatch = notesStr.match(/FullTotal:\s*\$(\d+\.\d+)/);
+
+                  if (regularMatch && outerMatch && fullMatch) {
+                    const regularTotal = parseFloat(regularMatch[1]);
+                    const outerTotal = parseFloat(outerMatch[1]);
+                    const fullTotal = parseFloat(fullMatch[1]);
+
+                    if (fullTotal > 0) {
+                      outerProportion = outerTotal / fullTotal;
+                    }
+                  }
+                }
+
+                outerIncomeShare = totalPaymentReceived * outerProportion;
+              } else if (outerItemsTotal > 0) {
+                // Invoice contains only outer products
+                outerIncomeShare = totalPaymentReceived;
+              }
+
+              totalOuterIncome += outerIncomeShare;
+            }
+          }
+        });
 
         // Calculate expenses using the stored buying_price
-        const expenses = outerItems.reduce((sum, item) => {
+        totalOuterExpenses = outerItems.reduce((sum, item) => {
           return (
             sum +
             (Number(item.buying_price) || 0) * (Number(item.quantity) || 0)
           );
         }, 0);
 
-        const profit = income - expenses;
+        const profit = totalOuterIncome - totalOuterExpenses;
 
         setOuterProductStats({
-          expenses,
-          income,
+          expenses: totalOuterExpenses,
+          income: totalOuterIncome,
           profit,
         });
       } else {
@@ -376,7 +481,7 @@ export function RevenueStats() {
       // Fetch invoices and payments
       const { data: salesInvoices } = await supabase
         .from("invoices")
-        .select("id, invoice_type, advance_payment")
+        .select("id, invoice_type, advance_payment, notes")
         .eq("invoice_type", "sales")
         .gte("created_at", currentStartStr)
         .lte("created_at", currentEndStr);
@@ -396,7 +501,7 @@ export function RevenueStats() {
 
       const { data: prevSalesInvoices } = await supabase
         .from("invoices")
-        .select("id, invoice_type, advance_payment")
+        .select("id, invoice_type, advance_payment, notes")
         .eq("invoice_type", "sales")
         .gte("created_at", prevStartStr)
         .lte("created_at", prevEndStr);
@@ -488,29 +593,45 @@ export function RevenueStats() {
         {} as { [key: string]: { outer: any[]; regular: any[] } },
       );
 
-      // Calculate income based on payments received
+      // Calculate income based on ONLY actual payments received
       let currentRegularIncome = 0;
       let currentOuterIncome = 0;
 
-      // Process all sales invoices
+      // Process all sales invoices - count each payment only once
       (salesInvoices || []).forEach((invoice) => {
+        // Get advance payment from invoice (this is what was paid upfront)
         const advancePayment = Number(invoice.advance_payment || 0);
-        const paymentsReceived = currentPaymentMap[invoice.id] || 0;
-        const totalPaymentReceived = advancePayment + paymentsReceived;
+
+        // Get additional payments from payments table (payments made after invoice creation)
+        const additionalPayments = currentPaymentMap[invoice.id] || 0;
+
+        // Total actual money received for this invoice
+        const totalActualPayments = advancePayment + additionalPayments;
+
+        console.log(
+          `Invoice ${invoice.id}: Advance=${advancePayment}, Additional=${additionalPayments}, Total=${totalActualPayments}`,
+        );
+
+        // Skip if no payments received
+        if (totalActualPayments <= 0) return;
 
         const invoiceItems = invoiceItemsMap[invoice.id] || {
           outer: [],
           regular: [],
         };
 
-        // Calculate total invoice value
+        // Calculate total invoice value for each type
         const regularItemsTotal = invoiceItems.regular.reduce(
-          (sum, item) => sum + (item.total_price - (item.discount_amount || 0)),
+          (sum, item) =>
+            sum +
+            (Number(item.total_price) - Number(item.discount_amount || 0)),
           0,
         );
 
         const outerItemsTotal = invoiceItems.outer.reduce(
-          (sum, item) => sum + (item.total_price - (item.discount_amount || 0)),
+          (sum, item) =>
+            sum +
+            (Number(item.total_price) - Number(item.discount_amount || 0)),
           0,
         );
 
@@ -518,26 +639,40 @@ export function RevenueStats() {
 
         if (invoiceTotal <= 0) return; // Skip if invoice has no value
 
-        // For regular products, only count advance payments in income
-        if (regularItemsTotal > 0) {
+        // Distribute the TOTAL ACTUAL PAYMENTS proportionally
+        if (regularItemsTotal > 0 && outerItemsTotal > 0) {
+          // Mixed invoice - distribute proportionally
           const regularProportion = regularItemsTotal / invoiceTotal;
-          const regularAdvancePayment = advancePayment * regularProportion;
-          currentRegularIncome += regularAdvancePayment;
-        }
-
-        // For outer products, ONLY count income when payment is received
-        if (outerItemsTotal > 0 && totalPaymentReceived > 0) {
-          // Calculate what portion of the payment should be allocated to outer products
           const outerProportion = outerItemsTotal / invoiceTotal;
-          const outerPaymentShare = Math.min(
-            outerItemsTotal,
-            totalPaymentReceived * outerProportion,
+
+          const regularIncomeShare = totalActualPayments * regularProportion;
+          const outerIncomeShare = totalActualPayments * outerProportion;
+
+          currentRegularIncome += regularIncomeShare;
+          currentOuterIncome += outerIncomeShare;
+
+          console.log(
+            `Mixed invoice ${invoice.id}: RegularShare=${regularIncomeShare.toFixed(2)}, OuterShare=${outerIncomeShare.toFixed(2)}`,
           );
-          currentOuterIncome += outerPaymentShare;
+        } else if (regularItemsTotal > 0) {
+          // Invoice contains only regular products
+          currentRegularIncome += totalActualPayments;
+          console.log(
+            `Regular-only invoice ${invoice.id}: Income=${totalActualPayments}`,
+          );
+        } else if (outerItemsTotal > 0) {
+          // Invoice contains only outer products
+          currentOuterIncome += totalActualPayments;
+          console.log(
+            `Outer-only invoice ${invoice.id}: Income=${totalActualPayments}`,
+          );
         }
       });
 
       const currentIncome = currentRegularIncome + currentOuterIncome;
+      console.log(
+        `FINAL INCOME CALCULATION: RegularIncome=${currentRegularIncome.toFixed(2)}, OuterIncome=${currentOuterIncome.toFixed(2)}, TotalIncome=${currentIncome.toFixed(2)}`,
+      );
 
       // Calculate previous period income using the same logic
       let prevRegularIncome = 0;
@@ -571,54 +706,58 @@ export function RevenueStats() {
         {} as { [key: string]: { outer: any[]; regular: any[] } },
       );
 
-      // Process previous sales invoices
+      // Process previous sales invoices using the same simplified logic
       (prevSalesInvoices || []).forEach((invoice) => {
         const advancePayment = Number(invoice.advance_payment || 0);
-        const paymentsReceived = prevPaymentMap[invoice.id] || 0;
-        const totalPaymentReceived = advancePayment + paymentsReceived;
+        const additionalPayments = prevPaymentMap[invoice.id] || 0;
+        const totalActualPayments = advancePayment + additionalPayments;
+
+        if (totalActualPayments <= 0) return;
 
         const invoiceItems = prevInvoiceItemsMap[invoice.id] || {
           outer: [],
           regular: [],
         };
 
-        // Calculate total invoice value
         const regularItemsTotal = invoiceItems.regular.reduce(
-          (sum, item) => sum + (item.total_price - (item.discount_amount || 0)),
+          (sum, item) =>
+            sum +
+            (Number(item.total_price) - Number(item.discount_amount || 0)),
           0,
         );
 
         const outerItemsTotal = invoiceItems.outer.reduce(
-          (sum, item) => sum + (item.total_price - (item.discount_amount || 0)),
+          (sum, item) =>
+            sum +
+            (Number(item.total_price) - Number(item.discount_amount || 0)),
           0,
         );
 
         const invoiceTotal = regularItemsTotal + outerItemsTotal;
 
-        if (invoiceTotal <= 0) return; // Skip if invoice has no value
+        if (invoiceTotal <= 0) return;
 
-        // For regular products, only count advance payments in income
-        if (regularItemsTotal > 0) {
+        if (regularItemsTotal > 0 && outerItemsTotal > 0) {
           const regularProportion = regularItemsTotal / invoiceTotal;
-          const regularAdvancePayment = advancePayment * regularProportion;
-          prevRegularIncome += regularAdvancePayment;
-        }
-
-        // For outer products, ONLY count income when payment is received
-        if (outerItemsTotal > 0 && totalPaymentReceived > 0) {
-          // Calculate what portion of the payment should be allocated to outer products
           const outerProportion = outerItemsTotal / invoiceTotal;
-          const outerPaymentShare = Math.min(
-            outerItemsTotal,
-            totalPaymentReceived * outerProportion,
-          );
-          prevOuterIncome += outerPaymentShare;
+
+          prevRegularIncome += totalActualPayments * regularProportion;
+          prevOuterIncome += totalActualPayments * outerProportion;
+        } else if (regularItemsTotal > 0) {
+          prevRegularIncome += totalActualPayments;
+        } else if (outerItemsTotal > 0) {
+          prevOuterIncome += totalActualPayments;
         }
       });
 
       const prevIncome = prevRegularIncome + prevOuterIncome;
 
+      // Set the income values
       setDailyIncome(currentIncome);
+      console.log(`Final total income set to: ${currentIncome.toFixed(2)}`);
+      console.log(
+        `Regular income: ${currentRegularIncome.toFixed(2)}, Outer income: ${currentOuterIncome.toFixed(2)}`,
+      );
 
       // Calculate Expenses
       const currentProductExpenses = (productInvoices || []).reduce(
@@ -802,14 +941,14 @@ export function RevenueStats() {
     },
     {
       title: expenseTitle,
-      value: `$${totalExpenses.toFixed(2)}`,
+      value: `${(totalExpenses - (outerProductStats.expenses || 0)).toFixed(2)}`,
       change: expensesChange,
       description: description,
       icon: <TrendingDown className="h-6 w-6 text-red-600" />,
     },
     {
       title: earningsTitle,
-      value: `$${netEarnings.toFixed(2)}`,
+      value: `${(dailyIncome - (outerProductStats.income || 0) - (totalExpenses - (outerProductStats.expenses || 0))).toFixed(2)}`,
       change: earningsChange,
       description: description,
       icon: <Wallet className="h-6 w-6 text-blue-600" />,
@@ -890,7 +1029,7 @@ export function RevenueStats() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-900">
-                ${dailyIncome.toFixed(2)}
+                ${(dailyIncome - (outerProductStats.income || 0)).toFixed(2)}
               </div>
               <div className="mt-1 flex items-center text-sm">
                 {incomeChange.type === "increase" ? (
@@ -920,7 +1059,8 @@ export function RevenueStats() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-900">
-                ${totalExpenses.toFixed(2)}
+                $
+                {(totalExpenses - (outerProductStats.expenses || 0)).toFixed(2)}
               </div>
               <div className="mt-1 flex items-center text-sm">
                 {expensesChange.type === "increase" ? (
@@ -950,7 +1090,12 @@ export function RevenueStats() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                ${netEarnings.toFixed(2)}
+                $
+                {(
+                  dailyIncome -
+                  (outerProductStats.income || 0) -
+                  (totalExpenses - (outerProductStats.expenses || 0))
+                ).toFixed(2)}
               </div>
               <div className="mt-1 flex items-center text-sm">
                 {earningsChange.type === "increase" ? (
@@ -976,10 +1121,10 @@ export function RevenueStats() {
 
       {/* Separate Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Regular Products */}
+        {/* Combined Products */}
         <div className="p-4 bg-gray-50 rounded-lg shadow border border-gray-200">
           <h3 className="text-lg font-medium mb-3 text-gray-800">
-            Regular Products
+            Combined Products (Regular + Outer)
           </h3>
           <div className="grid grid-cols-1 gap-3">
             {stats.map((stat, index) => (
