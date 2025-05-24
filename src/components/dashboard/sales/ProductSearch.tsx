@@ -73,13 +73,11 @@ export function ProductSearch({
 
   // Auto-search when query changes
   useEffect(() => {
-    if (searchQuery.length >= 2) {
-      const debounceTimer = setTimeout(() => {
-        handleSearch();
-      }, 300);
+    const debounceTimer = setTimeout(() => {
+      handleSearch();
+    }, 300);
 
-      return () => clearTimeout(debounceTimer);
-    }
+    return () => clearTimeout(debounceTimer);
   }, [searchQuery]);
 
   const fetchSuppliers = async () => {
@@ -254,6 +252,16 @@ export function ProductSearch({
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSearchQuery("");
+              fetchProducts();
+            }}
+            className="whitespace-nowrap"
+          >
+            Show All Products
+          </Button>
           <Button
             variant="outline"
             size="icon"

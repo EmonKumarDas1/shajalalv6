@@ -157,7 +157,7 @@ export function BatchProductForm({
         .select("*")
         .or(
           query && query.length > 0
-            ? `name.ilike.%${query.toLowerCase()}%,barcode.ilike.%${query.toLowerCase()}%,model.ilike.%${query.toLowerCase()}%`
+            ? `name.ilike.%${query.toLowerCase()}%,barcode.ilike.%${query.toLowerCase()}%,model.ilike.%${query.toLowerCase()}%,size.ilike.%${query.toLowerCase()}%,color.ilike.%${query.toLowerCase()}%`
             : "name.neq.null",
         )
         .order("name", { ascending: true })

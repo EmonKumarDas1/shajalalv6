@@ -211,6 +211,67 @@ export function UnifiedSellProductForm({
     });
   };
 
+  // Auto-save draft when user leaves the page or after significant changes
+  useEffect(() => {
+    if (cartItems.length > 0) {
+      const autoSaveDraft = () => {
+        const draftName =
+          currentDraftName ||
+          `Auto-Draft-${new Date().toISOString().slice(0, 16)}`;
+        const draftData = {
+          cartItems,
+          subtotal,
+          discountType,
+          discountValue,
+          discountAmount,
+          taxRate,
+          taxAmount,
+          totalAmount,
+          advancePayment,
+          remainingAmount,
+          paymentMethod,
+          customerName,
+          customerPhone,
+          shopId,
+          timestamp: new Date().toISOString(),
+        };
+
+        const updatedDrafts = {
+          ...drafts,
+          [draftName]: draftData,
+        };
+
+        localStorage.setItem("salesDrafts", JSON.stringify(updatedDrafts));
+        if (!currentDraftName) {
+          setCurrentDraftName(draftName);
+        }
+      };
+
+      // Auto-save when cart changes significantly
+      const autoSaveTimer = setTimeout(() => {
+        autoSaveDraft();
+      }, 5000); // 5 seconds after last change
+
+      // Save draft when user leaves the page
+      const handleBeforeUnload = () => {
+        autoSaveDraft();
+      };
+      window.addEventListener("beforeunload", handleBeforeUnload);
+
+      return () => {
+        clearTimeout(autoSaveTimer);
+        window.removeEventListener("beforeunload", handleBeforeUnload);
+      };
+    }
+  }, [
+    cartItems,
+    subtotal,
+    discountType,
+    discountValue,
+    taxRate,
+    advancePayment,
+  ]);
+
   useEffect(() => {
     calculateTotals();
   }, [cartItems, discountType, discountValue, taxRate, advancePayment]);
@@ -981,7 +1042,7 @@ export function UnifiedSellProductForm({
                           )}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Button
                           type="button"
                           variant="outline"
@@ -1000,7 +1061,9 @@ export function UnifiedSellProductForm({
                             <SelectContent>
                               {Object.keys(drafts).map((draftName) => (
                                 <SelectItem key={draftName} value={draftName}>
-                                  {draftName}
+                                  {draftName.startsWith("Auto-Draft")
+                                    ? draftName.substring(0, 20) + "..."
+                                    : draftName}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1721,39 +1784,70 @@ export function UnifiedSellProductForm({
                       saveDraft(draftNameInput);
                     }
                   }}
+                  autoFocus
                 />
               </div>
 
               {Object.keys(drafts).length > 0 && (
                 <div>
                   <Label>Existing Drafts</Label>
-                  <div className="mt-2 space-y-2 max-h-32 overflow-y-auto">
-                    {Object.keys(drafts).map((draftName) => (
-                      <div
-                        key={draftName}
-                        className="flex items-center justify-between p-2 bg-gray-50 rounded"
-                      >
-                        <span className="text-sm">{draftName}</span>
-                        <div className="flex gap-1">
+                  <div className="mt-2 space-y-2 max-h-60 overflow-y-auto">
+                    {Object.keys(drafts).map((draftName) => {
+                      const draft = drafts[draftName];
+                      const itemCount = draft?.cartItems?.length || 0;
+                      const timestamp = draft?.timestamp
+                        ? new Date(draft.timestamp).toLocaleString()
+                        : "Unknown date";
+                      const displayName = draftName.startsWith("Auto-Draft")
+                        ? `Auto-saved (${itemCount} items)`
+                        : draftName;
+
+                      return (
+                        <div
+                          key={draftName}
+                          className="flex flex-col p-3 bg-gray-50 rounded hover:bg-gray-100"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">{displayName}</span>
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => loadDraft(draftName)}
+                              >
+                                Load
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => deleteDraft(draftName)}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {timestamp} • {itemCount} items • $
+                            {draft?.totalAmount?.toFixed(2) || "0.00"}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {draft?.customerName
+                              ? `Customer: ${draft.customerName}`
+                              : "No customer"}
+                          </div>
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant="ghost"
+                            className="mt-1 h-6 text-xs justify-start p-0 hover:bg-transparent hover:underline"
                             onClick={() => {
                               setDraftNameInput(draftName);
                             }}
                           >
-                            Use Name
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => deleteDraft(draftName)}
-                          >
-                            Delete
+                            Use this name
                           </Button>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

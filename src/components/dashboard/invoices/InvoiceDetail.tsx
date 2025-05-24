@@ -708,6 +708,15 @@ export function InvoiceDetail() {
               </Button>
               <Button
                 variant="outline"
+                onClick={() =>
+                  navigate(`/dashboard/modern-invoice/${invoice.id}`)
+                }
+                className="flex items-center gap-1 text-xs p-2 border-purple-600 text-purple-600 hover:bg-purple-50"
+              >
+                <FileText className="h-3 w-3" /> Modern View
+              </Button>
+              <Button
+                variant="outline"
                 onClick={handleEditToggle}
                 className="flex items-center gap-1 text-xs p-2"
               >
@@ -747,7 +756,7 @@ export function InvoiceDetail() {
                   <p className="text-xs text-gray-700">
                     1st Class Contractor, Importer & Suppliers
                   </p>
-                  <p className="text-[10px] font-semibold text-green-700 inline-block px-2 py-0.5 mt-1 rounded bg-green-50 border border-green-100">
+                  <p className="text-[10px] font-semibold text-green-700 inline-block px-2 py-0.5 mt-1 rounded">
                     ELECTRICAL GOODS WHOLESALER & RETAILER
                   </p>
                 </div>
@@ -777,18 +786,10 @@ export function InvoiceDetail() {
             </div>
             <div className="flex flex-col sm:flex-row justify-between items-center mt-4 pt-3 border-t border-blue-200">
               <div className="flex items-center gap-2">
-                <div className="bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                <div className=" px-3 py-1 rounded-full border ">
                   <p className="text-xs font-medium text-blue-800">
                     Date:{" "}
                     {new Date(editedInvoice.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
-                  <p className="text-xs font-medium text-blue-800">
-                    Type:{" "}
-                    {editedInvoice.invoice_type === "sales"
-                      ? "Sales"
-                      : "Purchase"}
                   </p>
                 </div>
               </div>
@@ -802,18 +803,12 @@ export function InvoiceDetail() {
                     className="text-xs text-center mx-auto w-32"
                   />
                 ) : (
-                  <div className="bg-white px-4 py-1 rounded-full border border-gray-200 shadow-sm">
+                  <div className=" px-4 py-1">
                     <p className="text-sm font-medium text-gray-700">
                       Invoice #{editedInvoice.invoice_number}
                     </p>
                   </div>
                 )}
-                <Badge
-                  variant="outline"
-                  className={`mt-2 ${getStatusColor(editedInvoice.status)} font-semibold text-xs px-3 py-0.5`}
-                >
-                  {getStatusLabel(editedInvoice.status)}
-                </Badge>
               </div>
             </div>
           </div>
@@ -1234,20 +1229,6 @@ export function InvoiceDetail() {
                           <div className="font-medium text-gray-800">
                             ${Number(item.total_price).toFixed(2)}
                           </div>
-                          {item.is_outer_product && item.buying_price > 0 && (
-                            <p className="text-xs text-green-600 mt-1">
-                              Profit: $
-                              {(
-                                item.total_price -
-                                item.buying_price * item.quantity
-                              ).toFixed(2)}
-                              {invoice.status !== "paid" && (
-                                <span className="text-amber-500 ml-1">
-                                  (on payment)
-                                </span>
-                              )}
-                            </p>
-                          )}
                         </td>
                       </tr>
                     ))
@@ -1371,22 +1352,6 @@ export function InvoiceDetail() {
                 </div>
               )}
             </div>
-          </div>
-
-          <div className="mb-4">
-            <Label className="text-xs font-semibold text-gray-600">Notes</Label>
-            {isEditing ? (
-              <Input
-                value={editedInvoice.notes || ""}
-                onChange={(e) => handleInputChange("notes", e.target.value)}
-                className="text-xs mt-1"
-                placeholder="Enter notes (e.g., Discount: 10)"
-              />
-            ) : (
-              <p className="text-xs text-gray-500 mt-1">
-                {editedInvoice.notes || "No notes"}
-              </p>
-            )}
           </div>
 
           <div className="text-center text-[10px] text-gray-500 border-t pt-2">

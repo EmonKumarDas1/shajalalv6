@@ -1,12 +1,9 @@
-import { DashboardLayout } from "../dashboard/layout/DashboardLayout";
-import { InvoiceDetail } from "../dashboard/invoices/InvoiceDetail";
+import { InvoiceDetail } from "@/components/dashboard/invoices/InvoiceDetail";
 
 export default function InvoiceDetailPage() {
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <InvoiceDetail />
-      </div>
-    </DashboardLayout>
+    <div className="container mx-auto py-6">
+      <InvoiceDetail />
+    </div>
   );
 }

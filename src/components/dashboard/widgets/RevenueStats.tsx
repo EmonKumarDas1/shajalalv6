@@ -597,23 +597,60 @@ export function RevenueStats() {
       let currentRegularIncome = 0;
       let currentOuterIncome = 0;
 
-      // Process all sales invoices - count each payment only once
-      (salesInvoices || []).forEach((invoice) => {
-        // Get advance payment from invoice (this is what was paid upfront)
-        const advancePayment = Number(invoice.advance_payment || 0);
+      // Track which invoices we've already processed to avoid double counting
+      const processedInvoiceIds = new Set();
 
-        // Get additional payments from payments table (payments made after invoice creation)
-        const additionalPayments = currentPaymentMap[invoice.id] || 0;
+      // First, process payments from the payments table
+      (currentPayments || []).forEach((payment) => {
+        if (processedInvoiceIds.has(payment.invoice_id)) return;
 
-        // Total actual money received for this invoice
-        const totalActualPayments = advancePayment + additionalPayments;
+        const invoiceItems = invoiceItemsMap[payment.invoice_id] || {
+          outer: [],
+          regular: [],
+        };
 
-        console.log(
-          `Invoice ${invoice.id}: Advance=${advancePayment}, Additional=${additionalPayments}, Total=${totalActualPayments}`,
+        // Calculate total invoice value for each type
+        const regularItemsTotal = invoiceItems.regular.reduce(
+          (sum, item) =>
+            sum +
+            (Number(item.total_price) - Number(item.discount_amount || 0)),
+          0,
         );
 
-        // Skip if no payments received
-        if (totalActualPayments <= 0) return;
+        const outerItemsTotal = invoiceItems.outer.reduce(
+          (sum, item) =>
+            sum +
+            (Number(item.total_price) - Number(item.discount_amount || 0)),
+          0,
+        );
+
+        const invoiceTotal = regularItemsTotal + outerItemsTotal;
+        if (invoiceTotal <= 0) return; // Skip if invoice has no value
+
+        const paymentAmount = Number(payment.amount || 0);
+        if (paymentAmount <= 0) return;
+
+        // Distribute the payment proportionally
+        if (regularItemsTotal > 0 && outerItemsTotal > 0) {
+          // Mixed invoice - distribute proportionally
+          const regularProportion = regularItemsTotal / invoiceTotal;
+          const outerProportion = outerItemsTotal / invoiceTotal;
+
+          currentRegularIncome += paymentAmount * regularProportion;
+          currentOuterIncome += paymentAmount * outerProportion;
+        } else if (regularItemsTotal > 0) {
+          // Invoice contains only regular products
+          currentRegularIncome += paymentAmount;
+        } else if (outerItemsTotal > 0) {
+          // Invoice contains only outer products
+          currentOuterIncome += paymentAmount;
+        }
+      });
+
+      // Then process advance payments from invoices
+      (salesInvoices || []).forEach((invoice) => {
+        const advancePayment = Number(invoice.advance_payment || 0);
+        if (advancePayment <= 0) return;
 
         const invoiceItems = invoiceItemsMap[invoice.id] || {
           outer: [],
@@ -636,36 +673,22 @@ export function RevenueStats() {
         );
 
         const invoiceTotal = regularItemsTotal + outerItemsTotal;
-
         if (invoiceTotal <= 0) return; // Skip if invoice has no value
 
-        // Distribute the TOTAL ACTUAL PAYMENTS proportionally
+        // Distribute the advance payment proportionally
         if (regularItemsTotal > 0 && outerItemsTotal > 0) {
           // Mixed invoice - distribute proportionally
           const regularProportion = regularItemsTotal / invoiceTotal;
           const outerProportion = outerItemsTotal / invoiceTotal;
 
-          const regularIncomeShare = totalActualPayments * regularProportion;
-          const outerIncomeShare = totalActualPayments * outerProportion;
-
-          currentRegularIncome += regularIncomeShare;
-          currentOuterIncome += outerIncomeShare;
-
-          console.log(
-            `Mixed invoice ${invoice.id}: RegularShare=${regularIncomeShare.toFixed(2)}, OuterShare=${outerIncomeShare.toFixed(2)}`,
-          );
+          currentRegularIncome += advancePayment * regularProportion;
+          currentOuterIncome += advancePayment * outerProportion;
         } else if (regularItemsTotal > 0) {
           // Invoice contains only regular products
-          currentRegularIncome += totalActualPayments;
-          console.log(
-            `Regular-only invoice ${invoice.id}: Income=${totalActualPayments}`,
-          );
+          currentRegularIncome += advancePayment;
         } else if (outerItemsTotal > 0) {
           // Invoice contains only outer products
-          currentOuterIncome += totalActualPayments;
-          console.log(
-            `Outer-only invoice ${invoice.id}: Income=${totalActualPayments}`,
-          );
+          currentOuterIncome += advancePayment;
         }
       });
 
