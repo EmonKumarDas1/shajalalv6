@@ -78,6 +78,7 @@ export function UnifiedSellProductForm({
   const [remainingAmount, setRemainingAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [activeTab, setActiveTab] = useState<"products" | "cart">("products");
+  const [tabChanged, setTabChanged] = useState<boolean>(false);
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>(
     [],
   );
@@ -788,7 +789,7 @@ export function UnifiedSellProductForm({
           ? "Products have been added to the existing invoice successfully"
           : `Invoice #${invoiceNumber} has been generated successfully`,
       });
-      navigate(`/dashboard/invoices/${invoiceId}`);
+      navigate(`/dashboard/invoices/${invoiceId}/modern`);
     } catch (error) {
       console.error("Error processing sale:", error);
       let errorMessage = "An unknown error occurred";
@@ -811,7 +812,10 @@ export function UnifiedSellProductForm({
     <div className="space-y-6">
       <Tabs
         value={activeTab}
-        onValueChange={(value) => setActiveTab(value as "products" | "cart")}
+        onValueChange={(value) => {
+          setActiveTab(value as "products" | "cart");
+          setTabChanged(true);
+        }}
         className="w-full"
       >
         <TabsList className="grid w-full grid-cols-2">
@@ -1022,6 +1026,7 @@ export function UnifiedSellProductForm({
             onAddToCart={handleAddToCart}
             shopId={shopId}
             cartItems={cartItems}
+            key={`product-search-${tabChanged ? "changed" : "initial"}`}
           />
         </TabsContent>
         <TabsContent value="cart" className="space-y-6 mt-4">

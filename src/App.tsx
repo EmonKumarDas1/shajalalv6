@@ -11,6 +11,7 @@ import Suppliers from "./components/pages/suppliers";
 import Shops from "./components/pages/shops";
 import Invoices from "./components/pages/invoices";
 import InvoiceDetailPage from "./components/pages/invoice-detail";
+import ModernInvoicePage from "./components/pages/modern-invoice";
 import SellProduct from "./components/pages/sell-product";
 import Success from "./components/pages/success";
 import Profile from "./components/pages/profile";
@@ -135,6 +136,14 @@ function AppRoutes() {
           element={
             <PrivateRoute>
               <InvoiceDetailPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/invoices/:id/modern"
+          element={
+            <PrivateRoute>
+              <ModernInvoicePage />
             </PrivateRoute>
           }
         />

@@ -152,16 +152,21 @@ export function BatchProductForm({
   async function searchProducts(query: string) {
     try {
       // If query is empty or very short, fetch all products with a higher limit
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .or(
-          query && query.length > 0
-            ? `name.ilike.%${query.toLowerCase()}%,barcode.ilike.%${query.toLowerCase()}%,model.ilike.%${query.toLowerCase()}%,size.ilike.%${query.toLowerCase()}%,color.ilike.%${query.toLowerCase()}%`
-            : "name.neq.null",
-        )
-        .order("name", { ascending: true })
-        .limit(query && query.length > 0 ? 100 : 500);
+      let queryBuilder = supabase.from("products").select("*");
+
+      if (query && query.length > 0) {
+        // Use ilike for case-insensitive search on multiple fields
+        queryBuilder = queryBuilder.or(
+          `name.ilike.%${query}%,barcode.ilike.%${query}%,model.ilike.%${query}%,size.ilike.%${query}%,color.ilike.%${query}%`,
+        );
+        queryBuilder = queryBuilder.limit(100);
+      } else {
+        queryBuilder = queryBuilder.limit(500);
+      }
+
+      const { data, error } = await queryBuilder.order("name", {
+        ascending: true,
+      });
 
       if (error) throw error;
 

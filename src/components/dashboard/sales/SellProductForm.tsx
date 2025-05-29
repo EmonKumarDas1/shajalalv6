@@ -63,6 +63,7 @@ export function SellProductForm() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [previousDues, setPreviousDues] = useState(0);
   const [activeTab, setActiveTab] = useState<"products" | "cart">("products"); // Added state for controlling tabs
   const navigate = useNavigate();
 
@@ -320,9 +321,57 @@ export function SellProductForm() {
     setCartItems(updatedItems);
   };
 
-  const handleCustomerSelected = (name: string, phone: string) => {
+  const handleCustomerSelected = async (name: string, phone: string) => {
     setCustomerName(name);
     setCustomerPhone(phone);
+
+    // Fetch previous dues for this customer
+    if (phone) {
+      try {
+        // First get the customer ID
+        const { data: customerData, error: customerError } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("phone", phone)
+          .maybeSingle();
+
+        if (customerError) throw customerError;
+
+        if (customerData?.id) {
+          // Then get all unpaid or partially paid invoices
+          const { data: previousInvoices, error: previousInvoicesError } =
+            await supabase
+              .from("invoices")
+              .select("remaining_amount, status")
+              .eq("customer_id", customerData.id);
+
+          if (previousInvoicesError) throw previousInvoicesError;
+
+          if (previousInvoices) {
+            const totalPreviousDues = previousInvoices
+              .filter(
+                (inv) =>
+                  inv.status === "unpaid" || inv.status === "partially_paid",
+              )
+              .reduce((sum, inv) => sum + (inv.remaining_amount || 0), 0);
+
+            setPreviousDues(totalPreviousDues);
+            console.log(
+              "Previous dues loaded for customer:",
+              totalPreviousDues,
+            );
+          }
+        } else {
+          // New customer, no previous dues
+          setPreviousDues(0);
+        }
+      } catch (error) {
+        console.error("Error fetching previous dues:", error);
+        setPreviousDues(0);
+      }
+    } else {
+      setPreviousDues(0);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -567,9 +616,17 @@ export function SellProductForm() {
                 <CardContent className="pt-6">
                   <CustomerSelection
                     onCustomerSelected={handleCustomerSelected}
-                    initialName={prefilledCustomerName}
-                    initialPhone={prefilledCustomerPhone}
+                    initialName={customerName}
+                    initialPhone={customerPhone}
                   />
+
+                  {previousDues > 0 && (
+                    <div className="mt-4 p-2 bg-red-50 border border-red-200 rounded-md">
+                      <p className="text-sm font-medium text-red-700">
+                        Previous Due: ${previousDues.toFixed(2)}
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

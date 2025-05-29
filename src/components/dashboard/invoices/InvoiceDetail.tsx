@@ -105,6 +105,7 @@ export function InvoiceDetail() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [previousDues, setPreviousDues] = useState<number>(0);
   const navigate = useNavigate();
   const { toPDF, targetRef } = usePDF({
     filename: `invoice-${invoice?.invoice_number}.pdf`,
@@ -146,6 +147,24 @@ export function InvoiceDetail() {
           .eq("id", invoiceData.customer_id)
           .single();
         if (!customerError) customerData = data;
+
+        // Fetch previous dues for this customer (excluding current invoice)
+        const { data: previousInvoices, error: previousInvoicesError } =
+          await supabase
+            .from("invoices")
+            .select("remaining_amount")
+            .eq("customer_id", invoiceData.customer_id)
+            .neq("id", invoiceId) // Exclude current invoice
+            .eq("status", "unpaid")
+            .or("status.eq.partially_paid");
+
+        if (!previousInvoicesError && previousInvoices) {
+          const totalPreviousDues = previousInvoices.reduce(
+            (sum, inv) => sum + (inv.remaining_amount || 0),
+            0,
+          );
+          setPreviousDues(totalPreviousDues);
+        }
       }
 
       let shopData = null;
@@ -564,7 +583,6 @@ export function InvoiceDetail() {
     if (fullTotalMatch) {
       return parseFloat(fullTotalMatch[1]);
     } else if (outerProductsTotalMatch) {
-      // If we have outer products total but no full total, calculate it
       const outerProductsTotal = parseFloat(outerProductsTotalMatch[1]);
       return (editedInvoice?.total_amount || 0) + outerProductsTotal;
     }
@@ -613,16 +631,20 @@ export function InvoiceDetail() {
               display: none;
             }
             .print\\:border {
-              border: 1px solid #e5e7eb;
+              border: 1px solid #000;
             }
-            .print\\:shadow-none {
-              box-shadow: none;
+            .print\\:-none {
+              box-: none;
             }
             .card-content {
               padding: 8mm !important;
             }
             table {
               font-size: 9pt !important;
+              border-collapse: collapse;
+            }
+            th, td {
+              border: 1px solid #000 !important;
             }
             .no-print {
               display: none;
@@ -709,7 +731,7 @@ export function InvoiceDetail() {
               <Button
                 variant="outline"
                 onClick={() =>
-                  navigate(`/dashboard/modern-invoice/${invoice.id}`)
+                  navigate(`/dashboard/invoices/${invoice.id}/modern`)
                 }
                 className="flex items-center gap-1 text-xs p-2 border-purple-600 text-purple-600 hover:bg-purple-50"
               >
@@ -734,15 +756,12 @@ export function InvoiceDetail() {
         </div>
       </div>
 
-      <Card
-        className="border-none print:border print:shadow-none"
-        ref={targetRef}
-      >
+      <Card className="border-none print:border print:-none" ref={targetRef}>
         <CardContent className="p-4 card-content">
-          <div className="mb-6 bg-gradient-to-r from-blue-100 via-blue-50 to-white p-4 rounded-md border border-blue-200 shadow-sm">
+          <div className="mb-6 bg-gradient-to-r from-blue-100 via-blue-50 to-white p-4 rounded-md border border-blue-200 -sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="bg-white p-2 rounded-md shadow-sm border border-blue-100">
+                <div className="bg-white p-2 rounded-md -sm border border-blue-100">
                   <img
                     src="https://i.ibb.co/B2MzGc7Y/Screenshot-2025-04-20-195658.png"
                     alt="Shahjalal Lighting Logo"
@@ -761,7 +780,7 @@ export function InvoiceDetail() {
                   </p>
                 </div>
               </div>
-              <div className="text-right text-xs bg-white p-2 rounded-md border border-gray-100 shadow-sm">
+              <div className="text-right text-xs bg-white p-2 rounded-md border border-gray-100 -sm">
                 <p>119/24, Foyez Electric Market</p>
                 <p>Nandankanan, Chittagong</p>
                 <div className="flex items-center justify-end gap-1 mt-0.5">
@@ -814,7 +833,7 @@ export function InvoiceDetail() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div className="bg-white p-4 rounded-md border border-gray-200 shadow-sm">
+            <div className="bg-white p-4 rounded-md border border-gray-200">
               <h2 className="text-xs font-semibold text-gray-700 uppercase flex items-center gap-1 mb-2">
                 <svg
                   className="w-3 h-3 text-blue-600"
@@ -934,7 +953,7 @@ export function InvoiceDetail() {
               )}
             </div>
 
-            <div className="bg-white p-4 rounded-md border border-gray-200 shadow-sm">
+            <div className="bg-white p-4 rounded-md border border-gray-200 -sm">
               <h2 className="text-xs font-semibold text-gray-700 uppercase flex items-center gap-1 mb-2">
                 <svg
                   className="w-3 h-3 text-blue-600"
@@ -1009,8 +1028,6 @@ export function InvoiceDetail() {
                     )}
                   </div>
                 </div>
-
-                {/* Additional invoice metadata could go here */}
                 {editedInvoice.shop_name && (
                   <div className="bg-gray-50 p-2 rounded">
                     <p className="text-xs font-medium text-gray-600">Shop:</p>
@@ -1024,32 +1041,32 @@ export function InvoiceDetail() {
           </div>
 
           <div className="mb-4">
-            <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+            <div className="rounded-lg overflow-hidden border border-gray-200 -sm">
               <table className="w-full border-collapse text-xs">
                 <thead>
                   <tr className="bg-gradient-to-r from-blue-50 to-blue-100 border-b border-gray-300">
-                    <th className="py-2 px-3 text-left font-semibold text-blue-800">
+                    <th className="py-2 px-3 text-left font-semibold text-blue-800 border">
                       Description
                     </th>
-                    <th className="py-2 px-3 text-left font-semibold text-blue-800">
+                    <th className="py-2 px-3 text-left font-semibold text-blue-800 border">
                       Watt
                     </th>
-                    <th className="py-2 px-3 text-left font-semibold text-blue-800">
+                    <th className="py-2 px-3 text-left font-semibold text-blue-800 border">
                       Color
                     </th>
-                    <th className="py-2 px-3 text-left font-semibold text-blue-800">
+                    <th className="py-2 px-3 text-left font-semibold text-blue-800 border">
                       Model
                     </th>
-                    <th className="py-2 px-3 text-left font-semibold text-blue-800">
+                    <th className="py-2 px-3 text-left font-semibold text-blue-800 border">
                       Size
                     </th>
-                    <th className="py-2 px-3 text-center font-semibold text-blue-800">
+                    <th className="py-2 px-3 text-center font-semibold text-blue-800 border">
                       Qty
                     </th>
-                    <th className="py-2 px-3 text-right font-semibold text-blue-800">
+                    <th className="py-2 px-3 text-right font-semibold text-blue-800 border">
                       Unit Price
                     </th>
-                    <th className="py-2 px-3 text-right font-semibold text-blue-800">
+                    <th className="py-2 px-3 text-right font-semibold text-blue-800 border">
                       Total
                     </th>
                   </tr>
@@ -1062,7 +1079,7 @@ export function InvoiceDetail() {
                         key={item.id || index}
                         className={`border-b ${index % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-blue-50 transition-colors duration-150`}
                       >
-                        <td className="py-3 px-3">
+                        <td className="py-3 px-3 border">
                           {isEditing ? (
                             <Input
                               value={item.product_name}
@@ -1085,18 +1102,10 @@ export function InvoiceDetail() {
                                   Barcode: {item.product_barcode}
                                 </p>
                               )}
-                              {item.is_outer_product && (
-                                <Badge
-                                  variant="outline"
-                                  className="mt-1 text-[9px] bg-blue-50 text-blue-700 border-blue-200"
-                                >
-                                  Outer Product
-                                </Badge>
-                              )}
                             </>
                           )}
                         </td>
-                        <td className="py-3 px-3">
+                        <td className="py-3 px-3 border">
                           {isEditing ? (
                             <Input
                               type="number"
@@ -1122,7 +1131,7 @@ export function InvoiceDetail() {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-3">
+                        <td className="py-3 px-3 border">
                           {isEditing ? (
                             <Input
                               value={item.product_color || ""}
@@ -1142,7 +1151,7 @@ export function InvoiceDetail() {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-3">
+                        <td className="py-3 px-3 border">
                           {isEditing ? (
                             <Input
                               value={item.product_model || ""}
@@ -1162,7 +1171,7 @@ export function InvoiceDetail() {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-3">
+                        <td className="py-3 px-3 border">
                           {isEditing ? (
                             <Input
                               value={item.product_size || ""}
@@ -1182,7 +1191,7 @@ export function InvoiceDetail() {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-3 text-center">
+                        <td className="py-3 px-3 text-center border">
                           {isEditing ? (
                             <Input
                               type="number"
@@ -1203,7 +1212,7 @@ export function InvoiceDetail() {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-3 text-right">
+                        <td className="py-3 px-3 text-right border">
                           {isEditing ? (
                             <Input
                               type="number"
@@ -1225,7 +1234,7 @@ export function InvoiceDetail() {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-3 text-right">
+                        <td className="py-3 px-3 text-right border">
                           <div className="font-medium text-gray-800">
                             ${Number(item.total_price).toFixed(2)}
                           </div>
@@ -1235,8 +1244,8 @@ export function InvoiceDetail() {
                   ) : (
                     <tr>
                       <td
-                        colSpan={5}
-                        className="py-8 px-3 text-center text-gray-500"
+                        colSpan={8}
+                        className="py-8 px-3 text-center text-gray-500 border"
                       >
                         <div className="flex flex-col items-center justify-center">
                           <FileText className="h-8 w-8 text-gray-300 mb-2" />
@@ -1250,84 +1259,10 @@ export function InvoiceDetail() {
             </div>
           </div>
 
-          <div className="flex justify-end mb-4">
-            <div className="w-80 text-xs bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
-              <h3 className="font-medium text-sm text-gray-700 mb-3 pb-1 border-b border-gray-200">
-                Invoice Summary
-              </h3>
-              <div className="space-y-2">
-                <div className="flex justify-between py-1 bg-white px-3 rounded">
-                  <span className="font-semibold text-gray-600">Subtotal:</span>
-                  <span className="text-gray-800">
-                    ${subtotalBeforeDiscount.toFixed(2)}
-                  </span>
-                </div>
-                {discountAmount > 0 && (
-                  <div className="flex justify-between py-1 bg-white px-3 rounded">
-                    <span className="font-semibold text-gray-600">
-                      Discount:
-                    </span>
-                    <span className="text-green-600 font-medium">
-                      -${discountAmount.toFixed(2)}
-                    </span>
-                  </div>
-                )}
-                {getTaxAmount() > 0 && (
-                  <div className="flex justify-between py-1 bg-white px-3 rounded">
-                    <span className="font-semibold text-gray-600">Tax:</span>
-                    <span className="text-gray-800">
-                      ${getTaxAmount().toFixed(2)}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between py-2 border-t border-gray-200 mt-1">
-                  <span className="font-semibold text-gray-700">Total:</span>
-                  <span className="font-semibold text-gray-800">
-                    ${editedInvoice.total_amount.toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1 bg-white px-3 rounded">
-                  <span className="font-semibold text-gray-600">Paid:</span>
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      value={editedInvoice.advance_payment}
-                      onChange={(e) =>
-                        handleInputChange(
-                          "advance_payment",
-                          Number(e.target.value),
-                        )
-                      }
-                      className="text-xs w-24"
-                      step="0.01"
-                      min="0"
-                    />
-                  ) : (
-                    <span className="text-blue-600 font-medium">
-                      $
-                      {(
-                        editedInvoice.total_amount -
-                        editedInvoice.remaining_amount
-                      ).toFixed(2)}{" "}
-                      <span className="text-xs text-gray-500">
-                        ({advancePercentage.toFixed(1)}%)
-                      </span>
-                    </span>
-                  )}
-                </div>
-                <div className="flex justify-between py-2 mt-1 bg-blue-50 px-3 rounded-md border border-blue-100">
-                  <span className="font-bold text-blue-800">Balance Due:</span>
-                  <span
-                    className={`font-bold ${editedInvoice.remaining_amount > 0 ? "text-red-600" : "text-green-600"}`}
-                  >
-                    ${editedInvoice.remaining_amount.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Payment history section */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="md:col-span-1">
               {invoice.payments && invoice.payments.length > 0 && (
-                <div className="mt-4 pt-2 border-t border-gray-200">
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 -sm">
                   <h4 className="font-medium text-xs text-gray-700 mb-2">
                     Payment History
                   </h4>
@@ -1335,7 +1270,7 @@ export function InvoiceDetail() {
                     {invoice.payments.map((payment, idx) => (
                       <div
                         key={idx}
-                        className="text-[10px] flex justify-between bg-white p-1 rounded"
+                        className="text-[10px] flex justify-between p-1 rounded"
                       >
                         <span className="text-gray-600">
                           {new Date(payment.payment_date).toLocaleDateString()}
@@ -1351,6 +1286,107 @@ export function InvoiceDetail() {
                   </div>
                 </div>
               )}
+            </div>
+            <div className="md:col-span-2 flex justify-end">
+              <div className="w-80 text-xs bg-gray-50 p-4 rounded-lg border border-gray-200 -sm">
+                <h3 className="font-medium text-sm text-gray-700 mb-3 pb-1 border-b border-gray-200">
+                  Invoice Summary
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center py-1 px-3 rounded">
+                    <span className="font-semibold text-gray-600">
+                      Subtotal:
+                    </span>
+                    <span className="text-gray-800">
+                      ${subtotalBeforeDiscount.toFixed(2)}
+                    </span>
+                  </div>
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between items-center py-1 px-3 rounded">
+                      <span className="font-semibold text-gray-600">
+                        Discount:
+                      </span>
+                      <span className="text-green-600 font-medium">
+                        -${discountAmount.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {getTaxAmount() > 0 && (
+                    <div className="flex justify-between items-center py-1 bg-white px-3 rounded">
+                      <span className="font-semibold text-gray-600">Tax:</span>
+                      <span className="text-gray-800">
+                        ${getTaxAmount().toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center py-1 px-3 rounded">
+                    <span className="font-semibold text-gray-600">Total:</span>
+                    <span className="font-semibold text-gray-800">
+                      ${editedInvoice.total_amount.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 px-3 rounded">
+                    <span className="font-semibold text-gray-600">Paid:</span>
+                    {isEditing ? (
+                      <Input
+                        type="number"
+                        value={editedInvoice.advance_payment}
+                        onChange={(e) =>
+                          handleInputChange(
+                            "advance_payment",
+                            Number(e.target.value),
+                          )
+                        }
+                        className="text-xs w-24"
+                        step="0.01"
+                        min="0"
+                      />
+                    ) : (
+                      <span className="text-blue-600 font-medium">
+                        $
+                        {(
+                          editedInvoice.total_amount -
+                          editedInvoice.remaining_amount
+                        ).toFixed(2)}{" "}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex justify-between items-center py-2 mt-1 px-3 rounded-md">
+                    <span className="font-bold text-blue-800">
+                      Balance Due:
+                    </span>
+                    <span
+                      className={`font-bold ${editedInvoice.remaining_amount > 0 ? "text-red-600" : "text-green-600"}`}
+                    >
+                      ${editedInvoice.remaining_amount.toFixed(2)}
+                    </span>
+                  </div>
+
+                  {previousDues > 0 && (
+                    <>
+                      <div className="flex justify-between items-center py-1 px-3 rounded bg-yellow-50 border border-yellow-100">
+                        <span className="font-semibold text-yellow-800">
+                          Previous Due:
+                        </span>
+                        <span className="text-yellow-800 font-medium">
+                          ${previousDues.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 px-3 rounded-md bg-red-50 border border-red-100">
+                        <span className="font-bold text-red-800">
+                          Total Due:
+                        </span>
+                        <span className="font-bold text-red-800">
+                          $
+                          {(
+                            editedInvoice.remaining_amount + previousDues
+                          ).toFixed(2)}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1480,7 +1516,6 @@ export function InvoiceDetail() {
                 try {
                   setIsDeleting(true);
 
-                  // First delete related invoice items
                   const { error: itemsError } = await supabase
                     .from("invoice_items")
                     .delete()
@@ -1488,7 +1523,6 @@ export function InvoiceDetail() {
 
                   if (itemsError) throw itemsError;
 
-                  // Then delete related payments
                   const { error: paymentsError } = await supabase
                     .from("payments")
                     .delete()
@@ -1496,7 +1530,6 @@ export function InvoiceDetail() {
 
                   if (paymentsError) throw paymentsError;
 
-                  // Finally delete the invoice itself
                   const { error: invoiceError } = await supabase
                     .from("invoices")
                     .delete()

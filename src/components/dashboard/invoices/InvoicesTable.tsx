@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Eye, Download, Search, Trash2 } from "lucide-react";
+import { Eye, Download, Search, Trash2, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import { Link, useLocation } from "react-router-dom";
@@ -31,6 +31,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Invoice = {
   id: string;
@@ -233,11 +234,11 @@ export function InvoicesTable() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "paid":
-        return "border-green-200 bg-green-50 text-green-600";
+        return "border-green-200 bg-green-50 text-green-700 font-medium";
       case "partially_paid":
-        return "border-yellow-200 bg-yellow-50 text-yellow-600";
+        return "border-yellow-200 bg-yellow-50 text-yellow-700 font-medium";
       case "unpaid":
-        return "border-red-200 bg-red-50 text-red-600";
+        return "border-red-200 bg-red-50 text-red-700 font-medium";
       default:
         return "";
     }
@@ -325,186 +326,255 @@ export function InvoicesTable() {
 
   return (
     <>
-      <div className="space-y-4">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-            <Input
-              type="search"
-              placeholder="Search invoices..."
-              className="w-full bg-white pl-8"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <div className="flex gap-2">
-            <Select
-              value={invoiceTypeFilter}
-              onValueChange={(value) =>
-                setInvoiceTypeFilter(
-                  value as "all" | "sales" | "product_addition",
-                )
-              }
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="sales">Sales</SelectItem>
-                <SelectItem value="product_addition">Purchases</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={statusFilter}
-              onValueChange={(value) =>
-                setStatusFilter(
-                  value as
-                    | "all"
-                    | "paid"
-                    | "partially_paid"
-                    | "unpaid"
-                    | "pending",
-                )
-              }
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="partially_paid">Partially Paid</SelectItem>
-                <SelectItem value="unpaid">Unpaid</SelectItem>
-                <SelectItem value="pending">Pending Payment</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by supplier" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Suppliers</SelectItem>
-                {suppliers.map((supplier) => (
-                  <SelectItem key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+      <Card className="bg-white shadow-sm border-0">
+        <CardHeader className="pb-0">
+          <CardTitle className="text-2xl font-bold text-blue-700 flex items-center gap-2">
+            <FileText className="h-6 w-6" />
+            Invoices
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+              <div className="relative w-full max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                <Input
+                  type="search"
+                  placeholder="Search invoices..."
+                  className="w-full bg-white pl-8 border-gray-200"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Select
+                  value={invoiceTypeFilter}
+                  onValueChange={(value) =>
+                    setInvoiceTypeFilter(
+                      value as "all" | "sales" | "product_addition",
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-[150px] bg-white border-gray-200">
+                    <SelectValue placeholder="Filter by type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="sales">Sales</SelectItem>
+                    <SelectItem value="product_addition">Purchases</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) =>
+                    setStatusFilter(
+                      value as
+                        | "all"
+                        | "paid"
+                        | "partially_paid"
+                        | "unpaid"
+                        | "pending",
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-[150px] bg-white border-gray-200">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="partially_paid">
+                      Partially Paid
+                    </SelectItem>
+                    <SelectItem value="unpaid">Unpaid</SelectItem>
+                    <SelectItem value="pending">Pending Payment</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={supplierFilter}
+                  onValueChange={setSupplierFilter}
+                >
+                  <SelectTrigger className="w-[150px] bg-white border-gray-200">
+                    <SelectValue placeholder="Filter by supplier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Suppliers</SelectItem>
+                    {suppliers.map((supplier) => (
+                      <SelectItem key={supplier.id} value={supplier.id}>
+                        {supplier.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-        ) : filteredInvoices.length === 0 ? (
-          <div className="text-center py-10 text-gray-500">
-            {searchQuery
-              ? "No invoices match your search."
-              : "No invoices found. Add products with payment details to generate invoices."}
-          </div>
-        ) : (
-          <div className="rounded-md border bg-white">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Supplier</TableHead>
-                  <TableHead>Shop</TableHead>
-                  <TableHead>Total Amount</TableHead>
-                  <TableHead>Advance Payment</TableHead>
-                  <TableHead>Remaining</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredInvoices.map((invoice) => (
-                  <TableRow key={invoice.id}>
-                    <TableCell className="font-medium">
-                      {invoice.invoice_number}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(invoice.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>{invoice.supplier_name || "N/A"}</TableCell>
-                    <TableCell>{invoice.shop_name || "N/A"}</TableCell>
-                    <TableCell>${invoice.total_amount.toFixed(2)}</TableCell>
-                    <TableCell>${invoice.advance_payment.toFixed(2)}</TableCell>
-                    <TableCell>
-                      ${invoice.remaining_amount.toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={getStatusColor(invoice.status)}
+            {loading ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              </div>
+            ) : filteredInvoices.length === 0 ? (
+              <div className="text-center py-10 text-gray-500">
+                {searchQuery
+                  ? "No invoices match your search."
+                  : "No invoices found. Add products with payment details to generate invoices."}
+              </div>
+            ) : (
+              <div className="rounded-md overflow-hidden border border-gray-200">
+                <Table>
+                  <TableHeader className="bg-blue-50">
+                    <TableRow className="hover:bg-blue-50">
+                      <TableHead className="font-semibold text-blue-800">
+                        Invoice #
+                      </TableHead>
+                      <TableHead className="font-semibold text-blue-800">
+                        Date
+                      </TableHead>
+                      <TableHead className="font-semibold text-blue-800">
+                        Supplier
+                      </TableHead>
+                      <TableHead className="font-semibold text-blue-800">
+                        Shop
+                      </TableHead>
+                      <TableHead className="font-semibold text-blue-800">
+                        Total Amount
+                      </TableHead>
+                      <TableHead className="font-semibold text-blue-800">
+                        Advance Payment
+                      </TableHead>
+                      <TableHead className="font-semibold text-blue-800">
+                        Remaining
+                      </TableHead>
+                      <TableHead className="font-semibold text-blue-800">
+                        Status
+                      </TableHead>
+                      <TableHead className="text-right font-semibold text-blue-800">
+                        Actions
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredInvoices.map((invoice, index) => (
+                      <TableRow
+                        key={invoice.id}
+                        className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
                       >
-                        {getStatusLabel(invoice.status)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" asChild>
-                          <Link to={`/dashboard/invoices/${invoice.id}`}>
-                            <Eye className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                        <Button variant="ghost" size="icon" asChild>
-                          <Link
-                            to={`/dashboard/invoices/${invoice.id}/download`}
+                        <TableCell className="font-medium text-blue-700">
+                          {invoice.invoice_number}
+                        </TableCell>
+                        <TableCell>
+                          {new Date(invoice.created_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>{invoice.supplier_name || "N/A"}</TableCell>
+                        <TableCell>{invoice.shop_name || "N/A"}</TableCell>
+                        <TableCell className="font-medium">
+                          ${invoice.total_amount.toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          ${invoice.advance_payment.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          ${invoice.remaining_amount.toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={getStatusColor(invoice.status)}
                           >
-                            <Download className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleDeleteInvoice(
-                              invoice.id,
-                              invoice.invoice_number,
-                            );
-                          }}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                            {getStatusLabel(invoice.status)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              asChild
+                              className="hover:bg-blue-50"
+                            >
+                              <Link
+                                to={`/dashboard/invoices/${invoice.id}/modern`}
+                              >
+                                <Eye className="h-4 w-4 text-blue-700" />
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              asChild
+                              className="hover:bg-blue-50"
+                            >
+                              <Link
+                                to={`/dashboard/invoices/${invoice.id}/modern`}
+                              >
+                                <FileText className="h-4 w-4 text-blue-700" />
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              asChild
+                              className="hover:bg-blue-50"
+                            >
+                              <Link
+                                to={`/dashboard/invoices/${invoice.id}/download`}
+                              >
+                                <Download className="h-4 w-4 text-blue-700" />
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleDeleteInvoice(
+                                  invoice.id,
+                                  invoice.invoice_number,
+                                );
+                              }}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </CardContent>
+      </Card>
 
       <AlertDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-white border-0 shadow-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle>
+            <AlertDialogTitle className="text-xl font-bold text-blue-800">
               Are you sure you want to delete this invoice?
             </AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="text-gray-600">
               This action will permanently delete Invoice #
               {invoiceToDelete?.number}. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel
+              disabled={isDeleting}
+              className="border-gray-300 hover:bg-gray-50"
+            >
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
                 confirmDeleteInvoice();
               }}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-red-600 hover:bg-red-700 text-white font-medium"
               disabled={isDeleting}
             >
               {isDeleting ? "Deleting..." : "Delete"}

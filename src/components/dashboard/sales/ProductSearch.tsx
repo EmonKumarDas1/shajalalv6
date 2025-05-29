@@ -80,6 +80,13 @@ export function ProductSearch({
     return () => clearTimeout(debounceTimer);
   }, [searchQuery]);
 
+  // Ensure products are loaded when component mounts or tab changes
+  useEffect(() => {
+    if (shopId && searchQuery === "") {
+      fetchProducts();
+    }
+  }, [shopId]);
+
   const fetchSuppliers = async () => {
     try {
       const { data, error } = await supabase.from("suppliers").select("*");
